@@ -1,0 +1,10 @@
+# --- Environment / Safety / Power subsystem ---
+# Only required when running with HARDWARE_MODE = True on a Raspberry Pi.
+# Development with mock drivers (HARDWARE_MODE = False) does not need these.
+RPi.GPIO
+adafruit-blinka
+adafruit-circuitpython-ads1x15
+adafruit-circuitpython-dht
+
+# --- Testing ---
+pytest
