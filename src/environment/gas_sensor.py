@@ -41,7 +41,11 @@ class GasReading:
 
 def _create_driver() -> ADS1115Driver:
     if config.HARDWARE_MODE:
-        return RealADS1115Driver(config.ADS1115_I2C_ADDRESS, config.ADS1115_GAIN)
+        return RealADS1115Driver(
+            config.ADS1115_I2C_ADDRESS,
+            config.ADS1115_GAIN,
+            config.ADS1115_ALERT_READY_GPIO_PIN,
+        )
     return MockADS1115Driver()
 
 

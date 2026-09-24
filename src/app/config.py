@@ -9,28 +9,42 @@ wiring harness and must be set before HARDWARE_MODE is enabled.
 from __future__ import annotations
 
 import logging
+import os
+
+
+def _env_bool(name: str, default: bool) -> bool:
+	value = os.getenv(name)
+	if value is None:
+		return default
+	return value.strip().lower() in {"1", "true", "yes", "on"}
 
 # ---------------------------------------------------------------------------
 # Hardware / mock mode
 # ---------------------------------------------------------------------------
 # When False, every driver in this subsystem uses a simulated (mock)
 # implementation so the app can run on a dev machine without a Raspberry Pi.
-HARDWARE_MODE: bool = False
+HARDWARE_MODE: bool = _env_bool("KSA_HARDWARE_MODE", False)
 
 # ---------------------------------------------------------------------------
 # GPIO pin assignments (BCM numbering)
 # ---------------------------------------------------------------------------
-# TODO: CONFIRM - get these from the wiring diagram before enabling HARDWARE_MODE.
-DHT11_GPIO_PIN: int | None = None
-PIR_GPIO_PIN: int | None = None
-BUZZER_GPIO_PIN: int | None = None
-ALARM_LED_GPIO_PIN: int | None = None
+# Raspberry Pi 4 Model B physical pin mapping:
+# DHT11: GPIO26 / physical pin 37
+# HC-SR501 PIR: GPIO17 / physical pin 11
+# Active buzzer NPN driver: GPIO22 / physical pin 15
+# Alarm LED: GPIO27 / physical pin 13
+# ADS1115 ALERT/RDY: GPIO4 / physical pin 7
+DHT11_GPIO_PIN: int | None = 26
+PIR_GPIO_PIN: int | None = 17
+BUZZER_GPIO_PIN: int | None = 22
+ALARM_LED_GPIO_PIN: int | None = 27
+ADS1115_ALERT_READY_GPIO_PIN: int | None = 4
 
 # ---------------------------------------------------------------------------
 # ADS1115 / MQ-4 gas sensor
 # ---------------------------------------------------------------------------
 ADS1115_I2C_ADDRESS: int = 0x48  # ADS1115 default address (ADDR pin -> GND)
-ADS1115_GAS_CHANNEL: int = 0  # TODO: CONFIRM which single-ended input the MQ-4 is wired to
+ADS1115_GAS_CHANNEL: int = 0  # MQ-4 analog output connected to ADS1115 A0
 ADS1115_GAIN: float = 1.0  # +-4.096V full-scale range
 
 # These are RAW/VOLTAGE placeholders, not calibrated ppm values. Do not treat

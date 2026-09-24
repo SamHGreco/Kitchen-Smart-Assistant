@@ -39,11 +39,13 @@ class RealADS1115Driver(ADS1115Driver):
     be imported on machines without the library/hardware installed.
     """
 
-    def __init__(self, i2c_address: int, gain: float) -> None:
+    def __init__(self, i2c_address: int, gain: float, alert_ready_pin: int | None = None) -> None:
         self._i2c_address = i2c_address
         self._gain = gain
+        self._alert_ready_pin = alert_ready_pin
         self._ads = None
         self._ads_module = None
+        self._gpio = None
         self._channels: dict[int, object] = {}
 
     def _get_ads(self):
@@ -60,7 +62,22 @@ class RealADS1115Driver(ADS1115Driver):
             except OSError as exc:
                 raise SensorReadError(str(exc)) from exc
             self._ads_module = ads_module
+            self._setup_alert_ready_pin()
         return self._ads
+
+    def _setup_alert_ready_pin(self) -> None:
+        if self._alert_ready_pin is None or self._gpio is not None:
+            return
+        try:
+            import RPi.GPIO as GPIO  # type: ignore[reportMissingModuleSource]
+        except ImportError as exc:
+            raise SensorReadError("RPi.GPIO not available for ADS1115 ALERT/RDY input") from exc
+        try:
+            GPIO.setmode(GPIO.BCM)
+            GPIO.setup(self._alert_ready_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        except RuntimeError as exc:
+            raise SensorReadError(str(exc)) from exc
+        self._gpio = GPIO
 
     def _get_channel(self, channel: int):
         if channel not in self._channels:
@@ -95,6 +112,9 @@ class RealADS1115Driver(ADS1115Driver):
         self._channels.clear()
         self._ads = None
         self._ads_module = None
+        if self._gpio is not None and self._alert_ready_pin is not None:
+            self._gpio.cleanup(self._alert_ready_pin)
+            self._gpio = None
 
 
 class MockADS1115Driver(ADS1115Driver):

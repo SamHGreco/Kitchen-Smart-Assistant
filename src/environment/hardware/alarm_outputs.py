@@ -31,9 +31,9 @@ class AlarmOutputDriver(ABC):
 class RealAlarmOutputDriver(AlarmOutputDriver):
     """Real alarm output driver using GPIO outputs.
 
-    NOTE: control logic is implemented in Phase 5. Requires BUZZER_GPIO_PIN
-    and ALARM_LED_GPIO_PIN to be set in config.py. Assumes external
-    transistor/MOSFET driver circuitry for the buzzer, per hardware notes.
+    Requires BUZZER_GPIO_PIN and ALARM_LED_GPIO_PIN to be set in config.py.
+    Assumes external transistor/MOSFET driver circuitry for the buzzer, per
+    hardware notes.
     """
 
     def __init__(self, buzzer_pin: int | None, led_pin: int | None) -> None:
@@ -41,15 +41,37 @@ class RealAlarmOutputDriver(AlarmOutputDriver):
             raise ValueError("BUZZER_GPIO_PIN / ALARM_LED_GPIO_PIN not configured in config.py")
         self._buzzer_pin = buzzer_pin
         self._led_pin = led_pin
+        self._gpio = None
 
     def set_buzzer(self, on: bool) -> None:
-        raise NotImplementedError("RealAlarmOutputDriver.set_buzzer() will be implemented in Phase 5")
+        self._set_output(self._buzzer_pin, on)
 
     def set_led(self, on: bool) -> None:
-        raise NotImplementedError("RealAlarmOutputDriver.set_led() will be implemented in Phase 5")
+        self._set_output(self._led_pin, on)
+
+    def _ensure_initialized(self):
+        if self._gpio is None:
+            try:
+                import RPi.GPIO as GPIO  # type: ignore[reportMissingModuleSource]
+            except ImportError as exc:
+                raise RuntimeError("RPi.GPIO not available") from exc
+            GPIO.setmode(GPIO.BCM)
+            GPIO.setup(self._buzzer_pin, GPIO.OUT, initial=GPIO.LOW)
+            GPIO.setup(self._led_pin, GPIO.OUT, initial=GPIO.LOW)
+            self._gpio = GPIO
+        return self._gpio
+
+    def _set_output(self, pin: int, on: bool) -> None:
+        gpio = self._ensure_initialized()
+        gpio.output(pin, gpio.HIGH if on else gpio.LOW)
 
     def close(self) -> None:
-        pass
+        if self._gpio is None:
+            return
+        self._gpio.output(self._buzzer_pin, self._gpio.LOW)
+        self._gpio.output(self._led_pin, self._gpio.LOW)
+        self._gpio.cleanup((self._buzzer_pin, self._led_pin))
+        self._gpio = None
 
 
 class MockAlarmOutputDriver(AlarmOutputDriver):
