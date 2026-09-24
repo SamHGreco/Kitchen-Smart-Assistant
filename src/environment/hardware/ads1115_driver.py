@@ -146,7 +146,6 @@ class MockADS1115Driver(ADS1115Driver):
     def read_raw(self, channel: int) -> int:
         if self._force_failure:
             raise SensorReadError("Simulated ADS1115 failure")
-        # ADS1115 default +-4.096V full-scale range, 16-bit signed output.
         return int(self.read_voltage(channel) / 4.096 * 32767)
 
     def close(self) -> None:
