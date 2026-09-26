@@ -80,3 +80,39 @@ class EnvironmentStatus:
         if self.temperature_c is None:
             return None
         return celsius_to_fahrenheit(self.temperature_c)
+
+
+class QuantityType(Enum):
+    """Whether an item is tracked by count or by scale weight."""
+
+    COUNT = "count"
+    WEIGHT = "weight"
+
+
+class ItemStatus(Enum):
+    """Lifecycle state of an inventory item."""
+
+    ACTIVE = "active"
+    DEPLETED = "depleted"
+
+
+@dataclass(frozen=True)
+class InventoryItem:
+    """A single item tracked in the kitchen inventory."""
+
+    item_id: int
+    barcode: str | None
+    name: str
+    category: str | None
+    quantity_type: QuantityType
+    current_quantity: float
+    initial_quantity: float
+    unit: str
+    expiration_date: datetime | None
+    date_added: datetime
+    multiple_group: str | None
+    multiple_index: int | None
+    location: str
+    status: ItemStatus
+    last_updated: datetime
+    
