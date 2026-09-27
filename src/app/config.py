@@ -7,10 +7,12 @@ import os
 
 
 def _env_bool(name: str, default: bool) -> bool:
-	value = os.getenv(name)
-	if value is None:
-		return default
-	return value.strip().lower() in {"1", "true", "yes", "on"}
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 # Set KSA_HARDWARE_MODE=1 on the Raspberry Pi to use real hardware drivers.
 HARDWARE_MODE: bool = _env_bool("KSA_HARDWARE_MODE", False)
 
@@ -19,16 +21,14 @@ HARDWARE_MODE: bool = _env_bool("KSA_HARDWARE_MODE", False)
 # HC-SR501 PIR: GPIO17 / physical pin 11
 # Active buzzer NPN driver: GPIO22 / physical pin 15
 # Alarm LED: GPIO27 / physical pin 13
-# ADS1115 ALERT/RDY: GPIO4 / physical pin 7
 DHT11_GPIO_PIN: int | None = 26
 PIR_GPIO_PIN: int | None = 17
 BUZZER_GPIO_PIN: int | None = 22
 ALARM_LED_GPIO_PIN: int | None = 27
-ADS1115_ALERT_READY_GPIO_PIN: int | None = 4
 
-ADS1115_I2C_ADDRESS: int = 0x48
+ADS1115_I2C_ADDRESS: int = 0x48  # ADS1115 default address (ADDR pin -> GND)
 ADS1115_GAS_CHANNEL: int = 0
-ADS1115_GAIN: float = 1.0
+ADS1115_GAIN: float = 1.0  # +-4.096V full-scale range - MockADS1115Driver.read_raw() assumes this
 
 # Voltage thresholds are placeholders until MQ-4 bench calibration is complete.
 GAS_ALARM_VOLTAGE_THRESHOLD: float = 1.5
@@ -40,6 +40,16 @@ GAS_MAX_CONSECUTIVE_FAILURES: int = 5
 
 DHT11_POLL_INTERVAL_SECONDS: float = 5.0
 DHT11_MAX_CONSECUTIVE_FAILURES: int = 5
+
+# Placeholders until real-world calibration - mirrors the gas alarm pattern
+# (threshold + hysteresis + debounce) to avoid alarm chatter near the edge.
+TEMP_HIGH_THRESHOLD_C: float = 35.0  # TODO: CONFIRM appropriate high-temp cutoff
+TEMP_HIGH_HYSTERESIS_C: float = 2.0
+TEMP_ALARM_DEBOUNCE_SECONDS: float = 5.0
+
+HUMIDITY_HIGH_THRESHOLD_PERCENT: float = 80.0  # TODO: CONFIRM appropriate high-humidity cutoff
+HUMIDITY_HIGH_HYSTERESIS_PERCENT: float = 5.0
+HUMIDITY_ALARM_DEBOUNCE_SECONDS: float = 5.0
 
 PIR_POLL_INTERVAL_SECONDS: float = 0.25
 PIR_DEBOUNCE_SECONDS: float = 2.0

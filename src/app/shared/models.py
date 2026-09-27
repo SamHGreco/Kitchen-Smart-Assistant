@@ -63,6 +63,8 @@ class EnvironmentStatus:
 
     temperature_c: float | None
     humidity_percent: float | None
+    temp_alarm: bool
+    humidity_alarm: bool
     gas_raw: int | None
     gas_voltage: float | None
     gas_alarm: bool
@@ -80,3 +82,30 @@ class EnvironmentStatus:
         if self.temperature_c is None:
             return None
         return celsius_to_fahrenheit(self.temperature_c)
+
+
+@dataclass(frozen=True)
+class GasAlarmThresholds:
+    """Current gas alarm tuning, readable/settable at runtime by the UI subsystem."""
+
+    threshold_voltage: float
+    hysteresis_voltage: float
+    debounce_seconds: float
+
+
+@dataclass(frozen=True)
+class TempAlarmThresholds:
+    """Current high-temperature alarm tuning, readable/settable at runtime by the UI subsystem."""
+
+    threshold_c: float
+    hysteresis_c: float
+    debounce_seconds: float
+
+
+@dataclass(frozen=True)
+class HumidityAlarmThresholds:
+    """Current high-humidity alarm tuning, readable/settable at runtime by the UI subsystem."""
+
+    threshold_percent: float
+    hysteresis_percent: float
+    debounce_seconds: float
