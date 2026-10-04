@@ -150,3 +150,29 @@ def delete_item(conn: sqlite3.Connection, item_id: int) -> None:
     """Remove an item from the inventory."""
     conn.execute("DELETE FROM inventory_items WHERE item_id = ?", (item_id,))
     conn.commit()
+
+
+def get_all_items(conn: sqlite3.Connection) -> list[InventoryItem]:
+    """Fetch all items in the inventory."""
+    rows = conn.execute("SELECT * FROM inventory_items").fetchall()
+    return [_row_to_item(row) for row in rows]
+
+
+def update_expiration_date(
+    conn: sqlite3.Connection, item_id: int, new_expiration_date: datetime | None
+) -> InventoryItem | None:
+    """Update an item's expiration date, for manual entry or correcting it after creation."""
+    conn.execute(
+        """
+        UPDATE inventory_items
+        SET expiration_date = ?, last_updated = ?
+        WHERE item_id = ?
+        """,
+        (
+            new_expiration_date.isoformat() if new_expiration_date else None,
+            datetime.now().isoformat(),
+            item_id,
+        ),
+    )
+    conn.commit()
+    return get_item(conn, item_id)
