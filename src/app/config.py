@@ -13,8 +13,8 @@ def _env_bool(name: str, default: bool) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
-# Set KSA_HARDWARE_MODE=1 on the Raspberry Pi to use real hardware drivers.
-HARDWARE_MODE: bool = _env_bool("KSA_HARDWARE_MODE", False)
+# Set KSA_HARDWARE_MODE=0 to use mock drivers instead of real GPIO/I2C sensors.
+HARDWARE_MODE: bool = _env_bool("KSA_HARDWARE_MODE", True)
 
 # GPIO pin assignments use BCM numbering. Raspberry Pi 4 Model B physical pins:
 # DHT11: GPIO26 / physical pin 37

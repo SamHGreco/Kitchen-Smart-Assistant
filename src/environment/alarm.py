@@ -46,8 +46,13 @@ class AlarmController:
             if active == self._active:
                 return
             self._active = active
-            self._driver.set_buzzer(active)
-            self._driver.set_led(active)
+            try:
+                self._driver.set_buzzer(active)
+                self._driver.set_led(active)
+            except Exception:
+                # A buzzer/LED wiring fault must not crash EnvironmentManager's
+                # aggregation thread (and therefore stop gas/motion monitoring).
+                logger.exception("Failed to drive alarm outputs (buzzer/LED) - check wiring/GPIO")
         if active:
             logger.warning("Alarm outputs ACTIVATED (buzzer + LED)")
         else:
@@ -60,4 +65,7 @@ class AlarmController:
     def close(self) -> None:
         """De-energize outputs and release the driver."""
         self.set_alarm_active(False)
-        self._driver.close()
+        try:
+            self._driver.close()
+        except Exception:
+            logger.exception("Failed to close alarm output driver")
