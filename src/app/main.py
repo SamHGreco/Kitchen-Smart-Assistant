@@ -64,6 +64,28 @@ def _log_heartbeat(environment_manager: EnvironmentManager, power_manager: Power
     )
 
 
+def _preload_hardware_libraries() -> None:
+    """Import hardware libraries once, in the main thread, before any sensor
+    threads start.
+
+    adafruit-blinka's `board` module is not safe to import for the first
+    time from multiple threads concurrently - EnvironmentManager starts the
+    DHT11/gas/PIR monitor threads nearly simultaneously, and each driver
+    lazily imports `board`/`busio`/etc. on first use, which can deadlock
+    inside adafruit_platformdetect if two threads race to import it at once.
+    Importing here first means every later lazy import just hits Python's
+    module cache instead of racing to load it.
+    """
+    try:
+        import board  # noqa: F401
+        import busio  # noqa: F401
+        import adafruit_dht  # noqa: F401
+        import adafruit_ads1x15.ads1115  # noqa: F401
+        import RPi.GPIO  # noqa: F401
+    except ImportError as exc:
+        logger.warning("Hardware library preload skipped (%s) - sensors will report FAULT", exc)
+
+
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Environment/Safety/Power subsystem entry point")
     parser.add_argument(
@@ -92,6 +114,7 @@ def main() -> None:
             config.ADS1115_I2C_ADDRESS,
             config.ADS1115_GAS_CHANNEL,
         )
+        _preload_hardware_libraries()
 
     environment_manager, power_manager = build_subsystem()
 

@@ -70,6 +70,20 @@ _GUI_INACTIVITY_TIMEOUT_SECONDS = 10.0
 
 _REFRESH_MS = 200  # GUI output/log refresh rate
 
+
+def _preload_hardware_libraries() -> None:
+    """Import hardware libraries once, in the main thread, before any sensor
+    threads start - see main.py's copy of this function for why.
+    """
+    try:
+        import board  # noqa: F401
+        import busio  # noqa: F401
+        import adafruit_dht  # noqa: F401
+        import adafruit_ads1x15.ads1115  # noqa: F401
+        import RPi.GPIO  # noqa: F401
+    except ImportError:
+        pass  # Sensors will report FAULT individually - nothing to do here.
+
 _HEALTH_COLORS = {
     SensorHealth.OK: "#1a7f37",
     SensorHealth.DEGRADED: "#b35c00",
@@ -117,6 +131,7 @@ class ManualTestApp:
 
         self._build_ui()
 
+        _preload_hardware_libraries()
         self._power_manager.start()
         self._environment_manager.start()
         self._log("Subsystem started (real hardware; Bobby/Jamie inputs still simulated).")

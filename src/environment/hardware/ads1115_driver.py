@@ -43,7 +43,6 @@ class RealADS1115Driver(ADS1115Driver):
         self._i2c_address = i2c_address
         self._gain = gain
         self._ads = None
-        self._ads_module = None
         self._channels: dict[int, object] = {}
 
     def _get_ads(self):
@@ -59,7 +58,6 @@ class RealADS1115Driver(ADS1115Driver):
                 self._ads = ads_module.ADS1115(i2c, address=self._i2c_address, gain=self._gain)
             except OSError as exc:
                 raise SensorReadError(str(exc)) from exc
-            self._ads_module = ads_module
         return self._ads
 
     def _get_channel(self, channel: int):
@@ -68,11 +66,12 @@ class RealADS1115Driver(ADS1115Driver):
                 from adafruit_ads1x15.analog_in import AnalogIn
             except ImportError as exc:
                 raise SensorReadError("adafruit-circuitpython-ads1x15 not available") from exc
-            ads = self._get_ads()
-            pins = (self._ads_module.P0, self._ads_module.P1, self._ads_module.P2, self._ads_module.P3)
-            if not 0 <= channel < len(pins):
+            if not 0 <= channel < 4:
                 raise SensorReadError(f"Invalid ADS1115 channel {channel}")
-            self._channels[channel] = AnalogIn(ads, pins[channel])
+            ads = self._get_ads()
+            # AnalogIn takes the single-ended channel number (0-3) directly -
+            # this library version does not expose named P0..P3 constants.
+            self._channels[channel] = AnalogIn(ads, channel)
         return self._channels[channel]
 
     def read_voltage(self, channel: int) -> float:
@@ -94,7 +93,6 @@ class RealADS1115Driver(ADS1115Driver):
     def close(self) -> None:
         self._channels.clear()
         self._ads = None
-        self._ads_module = None
 
 
 class MockADS1115Driver(ADS1115Driver):
