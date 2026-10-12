@@ -50,12 +50,13 @@ class HX711Driver:
          while GPIO.input(self._dout_pin) == GPIO.HIGH:
              if time.time() - start_time > timeout_seconds:
                  raise TimeoutError("Timed out: HX711 did not signal data ready in time")
+             time.sleep(0.001)  # Sleep briefly to avoid busy-waiting
          
          raw_value = 0
          for i in range(24):
             GPIO.output(self._sck_pin, GPIO.HIGH)
-            GPIO.output(self._sck_pin, GPIO.LOW)
             bit = GPIO.input(self._dout_pin)
+            GPIO.output(self._sck_pin, GPIO.LOW)
             raw_value = (raw_value << 1) | bit
 
          # 25th pulse selects Channel A, gain 128 for the next conversion
@@ -67,3 +68,5 @@ class HX711Driver:
 
          return raw_value
     
+
+
