@@ -33,7 +33,7 @@ def calibrate_from_known_weight(
     # weight; confirm resulting readings are stable and repeatable before
     # relying on this calibration.
     raw_delta = raw_with_known_weight - raw_zero
-    if raw_delta <= 0:
-        raise ValueError("No change in raw reading or negative change; check wiring/placement")
+    if raw_delta == 0:
+        raise ValueError("No change in raw reading; check wiring/placement")
     scale_factor = raw_delta / known_weight_grams
     return CalibrationParams(zero_offset=raw_zero, scale_factor=scale_factor)
