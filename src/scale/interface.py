@@ -30,13 +30,32 @@ class WeightSensor(ABC):
         """Return the current weight in grams, tare-adjusted."""
         raise NotImplementedError
 
-    def read_stable_weight(self, samples: int = 5, delay: float = 0.1) -> float:
-        """Average several readings to reduce single-sample noise."""
+    def read_stable_weight(self, samples: int = 20, delay: float = 0.1, trim: int = 4) -> float:
+        """
+        Average several readings to reduce single-sample noise,
+        discard highest/lowest trim readings before averaging.
+        """
         readings = []
         for _ in range(samples):
             readings.append(self.read_weight())
             time.sleep(delay)
-        return sum(readings) / len(readings)
+        readings.sort()
+        trimmed = readings[trim: samples - trim]
+        return sum(trimmed) / len(trimmed)
+
+    def read_settled_weight(self, threshold_grams: float = 2.0, max_attempts: int = 5) ->  float:
+        """
+        Reapeatedly takes a trimmed, averaged reading, and compares to previous one.
+        Once two consecutive readings agree within threshold_grams, returns that value.
+        If never settles within max_attempts, returns last reading taken anyway.
+        """
+        previous_reading = self.read_stable_weight()
+        for _ in range(max_attempts - 1):
+            current_reading = self.read_stable_weight()
+            if abs(current_reading - previous_reading) <= threshold_grams:
+                return current_reading
+            previous_reading = current_reading
+        return previous_reading
 
 
 class SimulatedWeightSensor(WeightSensor):

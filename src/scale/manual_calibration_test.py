@@ -51,10 +51,10 @@ def main() -> None:
     # No need to call sensor.tare() here, the calibration's zero_offset
     # already captures the no-load baseline.
 
-    print("\n Printing live grams now, Ctrl+C to stop.\n")    #averaged over 5 samples each)
+    print("\n Waiting for the scale to settle on a final value, Ctrl+C to stop.\n")    #averaged over 20 samples each)
     try:
         while True:
-                grams = sensor.read_stable_weight()
+                grams = sensor.read_settled_weight()
                 print(f"{grams:.1f} g")
     except KeyboardInterrupt:
         print("\nStopped.")
