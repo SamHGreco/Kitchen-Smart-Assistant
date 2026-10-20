@@ -66,14 +66,14 @@ class SimulatedWeightSensor(WeightSensor):
         self._base_weight = base_weight
         self._noise = noise
 
-        def tare(self) -> None:
+    def tare(self) -> None:
             self._tare_offset = self._base_weight + random.uniform(-self._noise, self._noise)
 
-        def read_weight(self) -> float:
+    def read_weight(self) -> float:
             raw = self._base_weight + random.uniform(-self._noise, self._noise)
             return raw - self._tare_offset
 
-        def set_simulated_load(self, grams: float) -> None:
+    def set_simulated_load(self, grams: float) -> None:
             """Changes the weight this sensor reports, for testing purposes."""
             self._base_weight = grams
 
