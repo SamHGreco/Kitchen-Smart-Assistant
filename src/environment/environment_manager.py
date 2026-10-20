@@ -18,14 +18,18 @@ from app import config
 from app.shared.events import EventType, publish_event
 from app.shared.models import (
     ActivityType,
+    CalibrationResult,
     EnvironmentStatus,
     GasAlarmThresholds,
+    GasCalibrationStatus,
     HumidityAlarmThresholds,
+    RecalibrationReason,
     SafetyState,
     SensorHealth,
     TempAlarmThresholds,
 )
 from environment.alarm import AlarmController
+from environment.gas_calibration import GasCalibration, save_calibration
 from environment.gas_sensor import GasMonitor, GasReading
 from environment.motion import MotionMonitor
 from environment.temperature_humidity import TemperatureHumidityMonitor
@@ -43,7 +47,8 @@ class EnvironmentManager:
         is_temp_alarm_active(), is_humidity_alarm_active(), is_motion_detected(),
         get_gas_alarm_thresholds(), set_gas_alarm_thresholds(),
         get_temp_alarm_thresholds(), set_temp_alarm_thresholds(),
-        get_humidity_alarm_thresholds(), set_humidity_alarm_thresholds()
+        get_humidity_alarm_thresholds(), set_humidity_alarm_thresholds(),
+        calibrate_gas_sensor(), get_gas_calibration_status()
     """
 
     def __init__(
@@ -172,6 +177,130 @@ class EnvironmentManager:
         """Let the UI subsystem reconfigure high-humidity alarm tuning at runtime."""
         self._temperature_humidity_monitor.set_humidity_alarm_thresholds(
             threshold_percent, hysteresis_percent, debounce_seconds
+        )
+
+    def calibrate_gas_sensor(self) -> CalibrationResult:
+        """Capture the current gas voltage, temperature, and humidity as the
+        new calibration baseline, persist it, and update the live gas-alarm
+        threshold (baseline_voltage * config.GAS_ALARM_MULTIPLIER).
+
+        Reuses each monitor's already-sampled current reading - no new
+        hardware read is triggered, so this never races with the background
+        polling threads' own driver access and never blocks on slow sensor I/O.
+
+        Refuses to calibrate - without touching the existing baseline - if a
+        gas alarm is currently active (never use an alarm condition as the
+        new "normal"), or if any needed sensor reading is currently
+        unavailable (sensor fault).
+        """
+        if self._gas_monitor.is_gas_alarm_active():
+            logger.warning("Gas sensor calibration refused: gas alarm is currently active")
+            return CalibrationResult(
+                success=False,
+                message="Cannot calibrate while a gas alarm is active - wait for normal conditions.",
+                status=self.get_gas_calibration_status(),
+            )
+
+        gas_voltage = self._gas_monitor.get_gas_voltage()
+        temperature_c = self._temperature_humidity_monitor.get_temperature_c()
+        humidity_percent = self._temperature_humidity_monitor.get_humidity_percent()
+        if gas_voltage is None or temperature_c is None or humidity_percent is None:
+            logger.warning("Gas sensor calibration refused: a sensor reading is currently unavailable")
+            return CalibrationResult(
+                success=False,
+                message="Cannot calibrate - one or more sensors are currently unavailable.",
+                status=self.get_gas_calibration_status(),
+            )
+
+        calibration = GasCalibration(
+            gas_baseline_voltage=gas_voltage,
+            temperature_baseline_c=temperature_c,
+            humidity_baseline_rh=humidity_percent,
+            calibration_timestamp=datetime.now(timezone.utc),
+        )
+        try:
+            save_calibration(calibration, self._gas_monitor.get_calibration_file_path())
+        except OSError as exc:
+            logger.error("Failed to save gas calibration: %s", exc)
+            return CalibrationResult(
+                success=False,
+                message=f"Cannot calibrate - failed to save calibration file: {exc}",
+                status=self.get_gas_calibration_status(),
+            )
+
+        self._gas_monitor.set_calibration(calibration)
+        logger.info(
+            "Gas sensor calibrated: voltage=%.3fV temp=%.1fC humidity=%.1f%%",
+            gas_voltage,
+            temperature_c,
+            humidity_percent,
+        )
+        return CalibrationResult(
+            success=True, message="Calibration complete.", status=self.get_gas_calibration_status()
+        )
+
+    def get_gas_calibration_status(self) -> GasCalibrationStatus:
+        """Return the current calibration baseline, live alarm threshold,
+        environmental differences vs. baseline, and recalibration
+        recommendation. Computed fresh from current readings each call, so
+        the recalibration recommendation always reflects the live state
+        (and needs no separate "clear" step).
+        """
+        calibration = self._gas_monitor.get_calibration()
+        current_voltage = self._gas_monitor.get_gas_voltage()
+        current_temperature_c = self._temperature_humidity_monitor.get_temperature_c()
+        current_humidity_percent = self._temperature_humidity_monitor.get_humidity_percent()
+        alarm_threshold_voltage = self._gas_monitor.get_alarm_thresholds().threshold_voltage
+        gas_alarm_active = self._gas_monitor.is_gas_alarm_active()
+
+        if calibration is None:
+            return GasCalibrationStatus(
+                is_calibrated=False,
+                baseline_voltage=None,
+                current_voltage=current_voltage,
+                alarm_threshold_voltage=alarm_threshold_voltage,
+                temperature_baseline_c=None,
+                current_temperature_c=current_temperature_c,
+                temperature_difference_c=None,
+                humidity_baseline_rh=None,
+                current_humidity_rh=current_humidity_percent,
+                humidity_difference_rh=None,
+                recalibration_needed=False,
+                recalibration_reasons=(),
+                gas_alarm_active=gas_alarm_active,
+                calibration_timestamp=None,
+            )
+
+        temperature_difference_c = (
+            None if current_temperature_c is None else abs(current_temperature_c - calibration.temperature_baseline_c)
+        )
+        humidity_difference_rh = (
+            None
+            if current_humidity_percent is None
+            else abs(current_humidity_percent - calibration.humidity_baseline_rh)
+        )
+
+        reasons: list[RecalibrationReason] = []
+        if temperature_difference_c is not None and temperature_difference_c > config.TEMPERATURE_RECALIBRATION_DELTA_C:
+            reasons.append(RecalibrationReason.TEMPERATURE)
+        if humidity_difference_rh is not None and humidity_difference_rh > config.HUMIDITY_RECALIBRATION_DELTA_RH:
+            reasons.append(RecalibrationReason.HUMIDITY)
+
+        return GasCalibrationStatus(
+            is_calibrated=True,
+            baseline_voltage=calibration.gas_baseline_voltage,
+            current_voltage=current_voltage,
+            alarm_threshold_voltage=alarm_threshold_voltage,
+            temperature_baseline_c=calibration.temperature_baseline_c,
+            current_temperature_c=current_temperature_c,
+            temperature_difference_c=temperature_difference_c,
+            humidity_baseline_rh=calibration.humidity_baseline_rh,
+            current_humidity_rh=current_humidity_percent,
+            humidity_difference_rh=humidity_difference_rh,
+            recalibration_needed=bool(reasons),
+            recalibration_reasons=tuple(reason.value for reason in reasons),
+            gas_alarm_active=gas_alarm_active,
+            calibration_timestamp=calibration.calibration_timestamp,
         )
 
     def _run(self) -> None:

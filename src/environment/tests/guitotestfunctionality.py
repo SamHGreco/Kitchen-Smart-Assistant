@@ -9,7 +9,9 @@ sensors/outputs (DHT11, PIR, MQ-4/ADS1115, buzzer+LED) through the same
 production logic used by main.py (TemperatureHumidityMonitor, GasMonitor,
 MotionMonitor, EnvironmentManager, AlarmController, PowerManager) and shows
 you the live readings/alarms. It never duplicates production
-decision-making (thresholds, debounce, hysteresis, sleep/wake rules).
+decision-making (thresholds, debounce, hysteresis, sleep/wake rules). It
+also includes a "Calibrate Gas Sensor" button exercising
+EnvironmentManager.calibrate_gas_sensor()/get_gas_calibration_status().
 
 Bobby's UI and Jamie's scale subsystems are NOT implemented yet, so their
 inputs (touch, barcode, weight, UI state, transaction) are still simulated
@@ -26,6 +28,7 @@ fabricated readings) rather than real data.
 from __future__ import annotations
 
 import sys
+import time
 import tkinter as tk
 from datetime import datetime, timezone
 from pathlib import Path
@@ -138,6 +141,8 @@ class ManualTestApp:
 
         self._prev_safety_state: SafetyState | None = None
         self._prev_alarm_active: bool | None = None
+        self._calibration_flash_text: str | None = None
+        self._calibration_flash_until: float = 0.0
 
         self.root.after(_REFRESH_MS, self._refresh)
 
@@ -156,6 +161,7 @@ class ManualTestApp:
         self.root.grid_columnconfigure(1, weight=1)
 
         self._build_external_inputs_section(left)
+        self._build_calibration_section(left)
         self._build_outputs_section(right)
         self._build_integration_interface_section(right)
         self._build_log_section(bottom)
@@ -222,10 +228,47 @@ class ManualTestApp:
             ttk.Button(row, text="Apply", command=lambda k=key: self._on_apply_threshold(k)).pack(side="left", padx=4)
 
     # ============================================================
+    # GAS SENSOR CALIBRATION
+    # ============================================================
+    def _build_calibration_section(self, parent: ttk.Frame) -> None:
+        box = ttk.LabelFrame(parent, text="2. Gas Sensor Calibration", padding=8)
+        box.pack(fill="x", pady=(0, 8))
+
+        self._calibration_message_label = tk.Label(
+            box, text="-", anchor="w", wraplength=320, justify="left", font=("TkDefaultFont", 10, "bold")
+        )
+        self._calibration_message_label.pack(fill="x", pady=(0, 6))
+
+        ttk.Button(box, text="Calibrate Gas Sensor", command=self._on_calibrate).pack(fill="x")
+
+        self._calibration_labels: dict[str, tk.Label] = {}
+        for key, caption in (
+            ("is_calibrated", "is_calibrated"),
+            ("baseline_voltage", "baseline_voltage"),
+            ("current_voltage", "current_voltage"),
+            ("alarm_threshold_voltage", "alarm_threshold_voltage"),
+            ("temperature_baseline_c", "temperature_baseline_c"),
+            ("current_temperature_c", "current_temperature_c"),
+            ("temperature_difference_c", "temperature_difference_c"),
+            ("humidity_baseline_rh", "humidity_baseline_rh"),
+            ("current_humidity_rh", "current_humidity_rh"),
+            ("humidity_difference_rh", "humidity_difference_rh"),
+            ("recalibration_needed", "recalibration_needed"),
+            ("recalibration_reasons", "recalibration_reasons"),
+            ("calibration_timestamp", "calibration_timestamp"),
+        ):
+            row = ttk.Frame(box)
+            row.pack(fill="x")
+            ttk.Label(row, text=f"{caption}:", width=24, anchor="w", font=("TkFixedFont", 9)).pack(side="left")
+            value_label = tk.Label(row, text="-", anchor="w", font=("TkFixedFont", 9))
+            value_label.pack(side="left")
+            self._calibration_labels[key] = value_label
+
+    # ============================================================
     # SUBSYSTEM OUTPUTS
     # ============================================================
     def _build_outputs_section(self, parent: ttk.Frame) -> None:
-        box = ttk.LabelFrame(parent, text="2. Subsystem Outputs", padding=8)
+        box = ttk.LabelFrame(parent, text="3. Subsystem Outputs", padding=8)
         box.pack(fill="x", pady=(0, 8))
         self._output_labels: dict[str, tk.Label] = {}
         for key, caption in (
@@ -250,7 +293,7 @@ class ManualTestApp:
     # EXTERNAL INTERFACE VARIABLES
     # ============================================================
     def _build_integration_interface_section(self, parent: ttk.Frame) -> None:
-        box = ttk.LabelFrame(parent, text="3. Integration Interface (from EnvironmentManager.get_status())", padding=8)
+        box = ttk.LabelFrame(parent, text="4. Integration Interface (from EnvironmentManager.get_status())", padding=8)
         box.pack(fill="x", pady=(0, 8))
         self._interface_labels: dict[str, tk.Label] = {}
         for field in (
@@ -293,7 +336,7 @@ class ManualTestApp:
     # DIAGNOSTIC LOG
     # ============================================================
     def _build_log_section(self, parent: ttk.Frame) -> None:
-        box = ttk.LabelFrame(parent, text="4. Event / Diagnostic Log", padding=8)
+        box = ttk.LabelFrame(parent, text="5. Event / Diagnostic Log", padding=8)
         box.pack(fill="both", expand=True)
         self._log_text = tk.Text(box, height=10, state="disabled", font=("TkFixedFont", 9))
         scrollbar = ttk.Scrollbar(box, command=self._log_text.yview)
@@ -349,6 +392,16 @@ class ManualTestApp:
             self._environment_manager.set_humidity_alarm_thresholds(threshold_percent=value)
             self._log(f"GUI: set_humidity_alarm_thresholds(threshold_percent={value:.2f})")
 
+    def _on_calibrate(self) -> None:
+        result = self._environment_manager.calibrate_gas_sensor()
+        if result.success:
+            self._log(f"GUI: calibrate_gas_sensor() succeeded - {result.message}")
+            self._calibration_flash_text = "Gas Sensor Calibration Complete\nBaseline values saved successfully."
+            self._calibration_flash_until = time.monotonic() + 2.0
+        else:
+            self._log(f"GUI: calibrate_gas_sensor() refused - {result.message}")
+        self._update_calibration_section(result.status)
+
     # ============================================================
     # PERIODIC REFRESH - reads real subsystem outputs, never decides anything
     # ============================================================
@@ -359,6 +412,7 @@ class ManualTestApp:
 
         self._update_outputs(status, alarm_active)
         self._update_integration_interface(status, display_awake, alarm_active)
+        self._update_calibration_section(self._environment_manager.get_gas_calibration_status())
         self._drain_and_log_events()
         self._log_local_transitions(status, alarm_active)
 
@@ -380,6 +434,76 @@ class ManualTestApp:
 
     def _set_bool_label(self, label: tk.Label, value: bool, true_text: str, false_text: str) -> None:
         label.configure(text=true_text if value else false_text, fg=_BOOL_COLORS[value])
+
+    def _update_calibration_section(self, status) -> None:
+        if time.monotonic() < self._calibration_flash_until and self._calibration_flash_text is not None:
+            message, color = self._calibration_flash_text, _SAFETY_COLORS[SafetyState.NORMAL]
+        else:
+            message, color = self._calibration_message(status), self._calibration_message_color(status)
+        self._calibration_message_label.configure(text=message, fg=color)
+
+        labels = self._calibration_labels
+        labels["is_calibrated"].configure(text=str(status.is_calibrated))
+        labels["baseline_voltage"].configure(text=self._fmt_calibration_value(status.baseline_voltage, "V"))
+        labels["current_voltage"].configure(text=self._fmt_calibration_value(status.current_voltage, "V"))
+        labels["alarm_threshold_voltage"].configure(
+            text=self._fmt_calibration_value(status.alarm_threshold_voltage, "V")
+        )
+        labels["temperature_baseline_c"].configure(
+            text=self._fmt_calibration_value(status.temperature_baseline_c, "C")
+        )
+        labels["current_temperature_c"].configure(
+            text=self._fmt_calibration_value(status.current_temperature_c, "C")
+        )
+        labels["temperature_difference_c"].configure(
+            text=self._fmt_calibration_value(status.temperature_difference_c, "C")
+        )
+        labels["humidity_baseline_rh"].configure(text=self._fmt_calibration_value(status.humidity_baseline_rh, "%"))
+        labels["current_humidity_rh"].configure(text=self._fmt_calibration_value(status.current_humidity_rh, "%"))
+        labels["humidity_difference_rh"].configure(
+            text=self._fmt_calibration_value(status.humidity_difference_rh, "%")
+        )
+        labels["recalibration_needed"].configure(
+            text=str(status.recalibration_needed), fg=_BOOL_COLORS[status.recalibration_needed]
+        )
+        labels["recalibration_reasons"].configure(
+            text=", ".join(status.recalibration_reasons) if status.recalibration_reasons else "-"
+        )
+        labels["calibration_timestamp"].configure(
+            text="-"
+            if status.calibration_timestamp is None
+            else status.calibration_timestamp.strftime("%Y-%m-%d %H:%M:%S")
+        )
+
+    @staticmethod
+    def _fmt_calibration_value(value: float | None, suffix: str) -> str:
+        return "-" if value is None else f"{value:.3f}{suffix}"
+
+    @staticmethod
+    def _calibration_message(status) -> str:
+        if not status.is_calibrated:
+            return "Gas Sensor Not Calibrated\nPress Calibrate to establish a baseline."
+        if status.gas_alarm_active and status.recalibration_needed:
+            return (
+                "Gas Alarm\nAbnormal gas sensor response detected.\n\n"
+                "Recalibration is also recommended due to environmental changes."
+            )
+        if status.gas_alarm_active:
+            return "Gas Alarm\nAbnormal gas sensor response detected."
+        if status.recalibration_needed:
+            return (
+                "Gas Sensor Recalibration Recommended\n"
+                "Temperature or humidity has changed significantly since the last calibration."
+            )
+        return "Gas Monitoring: Normal\nCalibration: Current"
+
+    @staticmethod
+    def _calibration_message_color(status) -> str:
+        if status.gas_alarm_active:
+            return _SAFETY_COLORS[SafetyState.ALARM]
+        if not status.is_calibrated or status.recalibration_needed:
+            return _SAFETY_COLORS[SafetyState.WARNING]
+        return _SAFETY_COLORS[SafetyState.NORMAL]
 
     def _update_integration_interface(self, status, display_awake: bool, alarm_active: bool) -> None:
         def health_text(label: tk.Label, health: SensorHealth) -> None:

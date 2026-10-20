@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -37,6 +38,15 @@ GAS_ALARM_DEBOUNCE_SECONDS: float = 3.0
 GAS_POLL_INTERVAL_SECONDS: float = 1.0
 GAS_SAMPLE_FILTER_WINDOW: int = 5
 GAS_MAX_CONSECUTIVE_FAILURES: int = 5
+
+# User-initiated calibration (see environment/gas_calibration.py). Once
+# calibrated, the gas alarm threshold becomes baseline_voltage * this
+# multiplier instead of the static GAS_ALARM_VOLTAGE_THRESHOLD placeholder above.
+GAS_ALARM_MULTIPLIER: float = 2.0
+TEMPERATURE_RECALIBRATION_DELTA_C: float = 30.0
+HUMIDITY_RECALIBRATION_DELTA_RH: float = 40.0
+# Repo-root-relative path (independent of current working directory).
+GAS_CALIBRATION_FILE_PATH: Path = Path(__file__).resolve().parents[2] / "data" / "gas_calibration.json"
 
 DHT11_POLL_INTERVAL_SECONDS: float = 5.0
 DHT11_MAX_CONSECUTIVE_FAILURES: int = 5

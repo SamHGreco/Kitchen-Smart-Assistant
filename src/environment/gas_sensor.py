@@ -15,10 +15,12 @@ import threading
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 
 from app import config
 from app.shared.exceptions import SensorReadError
 from app.shared.models import GasAlarmThresholds, SensorHealth
+from environment.gas_calibration import GasCalibration, load_calibration
 from environment.hardware.ads1115_driver import (
     ADS1115Driver,
     MockADS1115Driver,
@@ -52,7 +54,8 @@ class GasMonitor:
     Public API (safe for other subsystems/threads to call):
         start(), stop(), get_reading(), get_gas_voltage(), get_gas_raw(),
         is_gas_alarm_active(), get_health(), get_alarm_thresholds(),
-        set_alarm_thresholds()
+        set_alarm_thresholds(), get_calibration(), set_calibration(),
+        is_calibrated()
     """
 
     def __init__(
@@ -65,6 +68,7 @@ class GasMonitor:
         alarm_hysteresis_voltage: float | None = None,
         alarm_debounce_seconds: float | None = None,
         filter_window: int | None = None,
+        calibration_file_path: Path | None = None,
     ) -> None:
         self._driver = driver if driver is not None else _create_driver()
         self._channel = channel if channel is not None else config.ADS1115_GAS_CHANNEL
@@ -108,6 +112,18 @@ class GasMonitor:
         self._alarm_active = False
         self._above_threshold_since: datetime | None = None
 
+        self._calibration_file_path = (
+            calibration_file_path if calibration_file_path is not None else config.GAS_CALIBRATION_FILE_PATH
+        )
+        self._calibration: GasCalibration | None = load_calibration(self._calibration_file_path)
+        if self._calibration is not None:
+            self._alarm_threshold_voltage = self._calibration.gas_baseline_voltage * config.GAS_ALARM_MULTIPLIER
+            logger.info(
+                "Loaded gas calibration: baseline=%.3fV -> alarm threshold=%.3fV",
+                self._calibration.gas_baseline_voltage,
+                self._alarm_threshold_voltage,
+            )
+
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
 
@@ -129,6 +145,10 @@ class GasMonitor:
         self._driver.close()
         logger.info("Gas monitor stopped")
 
+    def get_calibration_file_path(self) -> Path:
+        """Return the path this monitor loads/expects its calibration from."""
+        return self._calibration_file_path
+
     def get_reading(self) -> GasReading:
         """Return the latest reading snapshot. Thread-safe."""
         with self._lock:
@@ -145,6 +165,28 @@ class GasMonitor:
 
     def get_health(self) -> SensorHealth:
         return self.get_reading().health
+
+    def get_calibration(self) -> GasCalibration | None:
+        """Return the currently active saved calibration, if any. Thread-safe."""
+        with self._lock:
+            return self._calibration
+
+    def is_calibrated(self) -> bool:
+        return self.get_calibration() is not None
+
+    def set_calibration(self, calibration: GasCalibration) -> None:
+        """Apply a new calibration baseline (does not touch persistent storage -
+        the caller, EnvironmentManager.calibrate_gas_sensor(), saves it first).
+
+        Updates the active gas alarm threshold to
+        `baseline_voltage * config.GAS_ALARM_MULTIPLIER` by reusing the
+        existing `set_alarm_thresholds()` - hysteresis and debounce are left
+        exactly as configured. Thread-safe.
+        """
+        with self._lock:
+            self._calibration = calibration
+        self.set_alarm_thresholds(threshold_voltage=calibration.gas_baseline_voltage * config.GAS_ALARM_MULTIPLIER)
+        logger.info("Gas calibration applied: baseline=%.3fV", calibration.gas_baseline_voltage)
 
     def get_alarm_thresholds(self) -> GasAlarmThresholds:
         """Return the currently active gas alarm tuning. Thread-safe."""
