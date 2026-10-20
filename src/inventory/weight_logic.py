@@ -43,24 +43,13 @@ def is_depleted(item: InventoryItem) -> bool:
 class WeightUpdateResult:
     """
     Outcome of applying a new weight reading to an inventory item.
-    Carries the updated item plus whether this specific update is what crossed
-    item into near-empty or depleted, so UI knows when to prompt rather
-    than re-prompting on every read.
     """
-
-    def __init__(self, item: InventoryItem, became_near_empty: bool, became_depleted: bool):
+    def __init__(self, item, is_near_empty, is_depleted):
         self.item = item
-        self.became_near_empty = became_near_empty
-        self.became_depleted = became_depleted
+        self.is_near_empty = is_near_empty
+        self.is_depleted = is_depleted
 
-def apply_weight_reading(
-    conn: sqlite3.Connection, item: InventoryItem, sensor: WeightSensor
-) -> WeightUpdateResult:
-    """
-    Takes a settled reading from sensor and applies it to item's inventory
-    record. Only valid for QuantityType.WEIGHT items, since count items
-    (eggs, etc) aren't measured on the scale.
-    """
+def apply_weight_reading(conn, item, sensor):
     if item.quantity_type != QuantityType.WEIGHT:
         raise ValueError(
             f"Cannot apply a weight reading to {item.name!r}: "
@@ -68,19 +57,13 @@ def apply_weight_reading(
         )
 
     new_weight = sensor.read_settled_weight()
-    # Scale noise can report a hair below zero on empty tray; 
-    # clamp so a negative quantity is never stored
     new_weight = max(new_weight, 0.0)
-
-    was_near_empty = is_near_empty(item)
-    was_depleted = is_depleted(item)
-
     updated_item = update_quantity(conn, item.item_id, new_weight)
 
     return WeightUpdateResult(
         item=updated_item,
-        became_near_empty=is_near_empty(updated_item) and not was_near_empty,
-        became_depleted=is_depleted(updated_item) and not was_depleted,
+        is_near_empty=is_near_empty(updated_item),
+        is_depleted=is_depleted(updated_item),
     )
 
 

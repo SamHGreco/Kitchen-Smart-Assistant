@@ -58,8 +58,8 @@ def test_apply_weight_reading_updates_quantity(conn):
 
     result = apply_weight_reading(conn, item, sensor)
     assert result.item.current_quantity == 1800.0
-    assert result.became_near_empty is False
-    assert result.became_depleted is False
+    assert result.is_near_empty is False
+    assert result.is_depleted is False
 
 
 def test_apply_weight_readings_flags_near_empty(conn):
@@ -69,18 +69,33 @@ def test_apply_weight_readings_flags_near_empty(conn):
     sensor.set_simulated_load(100.0)  # below the 150g threshold
 
     result = apply_weight_reading(conn, item, sensor)
-    assert result.became_near_empty is True
-    assert result.became_depleted is False
+    assert result.is_near_empty is True
+    assert result.is_depleted is False
 
 
-def test_apply_weight_reading_flags_depleted(conn):
+def test_apply_weight_reading_reports_depleted(conn):
     item = create_item(conn, name="Flour", quantity_type=QuantityType.WEIGHT, initial_quantity=1000, unit="g")
     sensor = SimulatedWeightSensor(base_weight=0.0, noise=0.0)
     sensor.tare()
     sensor.set_simulated_load(0.0)
 
     result = apply_weight_reading(conn, item, sensor)
-    assert result.became_depleted is True
+    assert result.is_depleted is True
+
+
+def test_near_empty_keeps_firing_on_repeated_weigh_ins(conn):
+    """is_near_empty should report True every time the item is weighed 
+    while still low, not just the first time."""
+    item = create_item(conn, name="Flour", quantity_type=QuantityType.WEIGHT, initial_quantity=1000, unit="g")
+    sensor = SimulatedWeightSensor(base_weight=0.0, noise=0.0)
+    sensor.tare()
+    sensor.set_simulated_load(100.0)
+
+    first = apply_weight_reading(conn, item, sensor)
+    second = apply_weight_reading(conn, first.item, sensor)
+
+    assert first.is_near_empty is True
+    assert second.is_near_empty is True
 
 
 def test_create_item_with_weight_sets_quantity_from_sensor(conn):
