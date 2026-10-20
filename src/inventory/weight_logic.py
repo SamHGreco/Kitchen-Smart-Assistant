@@ -12,7 +12,7 @@ import math
 import sqlite3
 
 from app.shared.models import InventoryItem, ItemStatus, QuantityType
-from inventory.inventory_db import update_quantity
+from inventory.inventory_db import create_item, get_items_by_name, update_quantity
 from scale.interface import WeightSensor
 
 # Fraction of initial_quantity at or below which an item counts as
@@ -82,3 +82,25 @@ def apply_weight_reading(
         became_near_empty=is_near_empty(updated_item) and not was_near_empty,
         became_depleted=is_depleted(updated_item) and not was_depleted,
     )
+
+
+def create_item_with_weight(conn, sensor, name, unit, barcode=None, category=None,
+                            expiration_date=None, location="pantry") -> InventoryItem:
+    """
+    Captures settled weight reading and creates a new weight-tracked
+    inventory item from it. Every item gets a multiple_index, starting at 1,
+    based on how many items with this name already exist. A lone milk entry is
+    entered as "Milk 1" rather than being unnumbered.
+    """
+    weight = sensor.read_settled_weight()
+    weight = max(weight, 0.0)
+
+    existing = get_items_by_name(conn, name)
+    next_index = len(existing) + 1
+
+    return create_item(
+        conn, name=name, quantity_type=QuantityType.WEIGHT, initial_quantity=weight,
+        unit=unit, barcode=barcode, category=category, expiration_date=expiration_date,
+        location=location, multiple_group=name, multiple_index=next_index,
+    )
+

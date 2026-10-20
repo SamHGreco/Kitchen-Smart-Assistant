@@ -6,6 +6,7 @@ from app.shared.models import QuantityType
 from inventory.inventory_db import get_connection, init_db, create_item
 from inventory.weight_logic import(
     near_empty_quantity, is_near_empty, is_depleted, apply_weight_reading,
+    create_item_with_weight
 )
 from scale.interface import SimulatedWeightSensor
 
@@ -80,3 +81,37 @@ def test_apply_weight_reading_flags_depleted(conn):
 
     result = apply_weight_reading(conn, item, sensor)
     assert result.became_depleted is True
+
+
+def test_create_item_with_weight_sets_quantity_from_sensor(conn):
+    sensor = SimulatedWeightSensor(base_weight=0.0, noise=0.0)
+    sensor.tare()
+    sensor.set_simulated_load(500.0)
+
+    item = create_item_with_weight(conn, sensor, name="Milk", unit="g")
+    assert item.quantity_type == QuantityType.WEIGHT
+    assert item.initial_quantity == 500.0
+    assert item.current_quantity == 500.0
+
+
+def test_create_item_with_weight_indexes_first_item_as_one(conn):
+    sensor = SimulatedWeightSensor(base_weight=0.0, noise=0.0)
+    sensor.tare()
+    sensor.set_simulated_load(500.0)
+
+    item = create_item_with_weight(conn, sensor, name="Milk", unit="g")
+    assert item.multiple_group == "Milk"
+    assert item.multiple_index == 1
+
+
+def test_create_item_with_weight_increments_index_for_second_item(conn):
+    sensor = SimulatedWeightSensor(base_weight=0.0, noise=0.0)
+    sensor.tare()
+    sensor.set_simulated_load(500.0)
+    create_item_with_weight(conn, sensor, name="Milk", unit="g")
+
+    sensor.set_simulated_load(950.0)
+    second = create_item_with_weight(conn, sensor, name="Milk", unit="g")
+
+    assert second.multiple_group == "Milk"
+    assert second.multiple_index == 2
