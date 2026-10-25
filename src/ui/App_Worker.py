@@ -7,7 +7,7 @@ import time
 import uuid
 from zoneinfo import ZoneInfo
 from dataclasses import asdict
-from Barcode_Reader import AtomicBarcodeReader, ScanCancelled
+from product_id.barcode_reader import AtomicBarcodeReader, ScanCancelled
 from Inventory_Database import Store
 from System_Clock import SystemClock, MockClock
 
