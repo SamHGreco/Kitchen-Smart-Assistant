@@ -1,0 +1,59 @@
+
+{
+  "_note": "This may change over time, but for now this is likely to work",
+
+  
+  "catalog": "data/catalog.sqlite.db",
+  "products": "data/barcodes.db",
+  "inventory": "data/Inventory.db",
+  "serial": {
+    "port": "/dev/serial0",
+    "baud": 115200
+  },
+  "hardware_review": {
+    "gpio15_conflict_resolved": true,
+    "uart_voltage_compatibility_confirmed": true,
+    "power_budget_and_connector_orientation_confirmed": true,
+    "sensor_wiring_confirmed": true,
+    "alarm_outputs_confirmed": true,
+    "scale_wiring_and_capacity_confirmed": true,
+    "gas_warmup_complete": true,
+    "gas_voltage_thresholds_reviewed": true
+  },
+  "hardware": {
+    "gpio_chip": null
+  },
+  "gpio": {
+    "i2c_sda": 2,
+    "i2c_scl": 3,
+    "ads_alert_ready": 4,
+    "barcode_tx": 14,
+    "barcode_rx": 15,
+    "motion": 17,
+    "alarm_led": 27,
+    "buzzer": 22,
+    "scale_data": 5,
+    "scale_clock": 6,
+    "dht11": 26
+  },
+  "scale": {
+    "capacity_g": null,
+    "stable_spread_g": 5.0,
+    "activity_delta_g": 10.0,
+    "max_raw_spread": 2000.0
+  },
+  "gas": {
+    "ads_address": 72,
+    "ads_channel": 0,
+    "adc_input_limit_v": 3.3,
+    "startup_thresholds": {
+      "threshold_voltage": 1.5,
+      "hysteresis_voltage": 0.15,
+      "debounce_seconds": 3.0
+    }
+  },
+  "alarm": {
+    "buzzer_active_high": true,
+    "led_active_high": true
+  }
+}
