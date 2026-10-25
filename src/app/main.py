@@ -34,7 +34,7 @@ from environment.hardware.alarm_outputs import RealAlarmOutputDriver
 from power.sleep_manager import PowerManager
 from Sensor_Interfaces import TeamSensors
 from Input_Validation import load_config
-from main import run_app
+from ui.main import run_app
 
 logger = logging.getLogger(__name__)
 
