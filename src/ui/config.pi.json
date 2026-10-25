@@ -3,9 +3,9 @@
   "_note": "This may change over time, but for now this is likely to work",
 
   
-  "catalog": "product_id/data/catalog.sqlite.db",
-  "products": "product_id/data/barcodes.db",
-  "inventory": "product_id/data/Inventory.db",
+  "catalog": "../product_id/data/catalog.sqlite.db",
+  "products": "../product_id/data/barcodes.db",
+  "inventory": "../product_id/data/Inventory.db",
   "serial": {
     "port": "/dev/serial0",
     "baud": 115200
