@@ -3,7 +3,7 @@
   "_note": "This may change over time, but for now this is likely to work",
 
   
-  "catalog": "../product_id/data/catalog.sqlite.db",
+  "catalog": "../product_id/data/catalog.sqlite",
   "products": "../product_id/data/barcodes.db",
   "inventory": "../product_id/data/Inventory.db",
   "serial": {
