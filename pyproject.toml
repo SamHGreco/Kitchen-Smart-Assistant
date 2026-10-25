@@ -1,3 +1,9 @@
+[project]
+name = "kitchen-smart-assistant"
+version = "0.1.0"
+requires-python = ">=3.12"
+# Dependencies are tracked in requirements.txt, not here.
+
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests", "src"]

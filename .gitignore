@@ -1,4 +1,25 @@
+# Python-generated files
 __pycache__/
-*.pyc
+*.py[cod]
 .pytest_cache/
+
+# Python virtual environments
+.venv*/
+venv/
+
+# Local product databases
+/src/product_id/data/
+
+# Temporary files
+logs/
+*.log
+*.tmp
+
+# Runtime lock files
+*.lock
+
+# Backup files
+*.before-*
+*.before-edit
+
 *.db
