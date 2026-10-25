@@ -1,7 +1,7 @@
 #Stand in for now
 
 from __future__ import annotations
-import product_Database
+import product_id.product_database
 import sqlite3
 from contextlib import closing
 from dataclasses import asdict
@@ -78,7 +78,7 @@ class Store(InventoryQueries):
             self.manual = open_db(self.settings['manual'], 'rw')
             if not (INVENTORY_FIELDS - {'item_upc'} | DATE_FIELDS).issubset(columns(self.manual, 'manual_items')):
                 raise ValueError('Manual inventory type differs')
-            self.products = product_Database.ProductDatabase(self.settings['catalog'], self.settings['products'])
+            self.products = product_id.product_database.ProductDatabase(self.settings['catalog'], self.settings['products'])
             return self
         except BaseException:
             self.__exit__()
@@ -101,7 +101,7 @@ class Store(InventoryQueries):
         code = normalize(code) if code else None
         learned = False
         if code and pending.get('product') is None:
-            cls = product_Database.Product
+            cls = product_id.product_database.Product
             self.products.save_product(cls(code, values['brand_name'], values['item_name'], values['item_weight'], values['item_category']))
             learned = True
         connection = self.inventory if code else self.manual

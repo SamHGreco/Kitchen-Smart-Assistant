@@ -6,7 +6,7 @@ from pathlib import Path
 import sqlite3
 from Input_Validation import load_config
 from Inventory_Database import MANUAL_SCHEMA, Store
-from product_Database import ProductDatabase, open_readonly, validate_catalog
+from product_id.product_database import ProductDatabase, open_readonly, validate_catalog
 
 INVENTORY_SCHEMA = '''CREATE TABLE inventory_items (
     inventory_id INTEGER PRIMARY KEY,

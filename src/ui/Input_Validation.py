@@ -4,7 +4,7 @@ import json
 import re
 from datetime import date
 from pathlib import Path
-from product_Database import normalize_barcode as normalize, validate_weight, utc_now
+from product_id.product_database import normalize_barcode as normalize, validate_weight, utc_now
 FIELDS = {'item_upc', 'brand_name', 'item_name', 'item_weight', 'item_category'}
 INVENTORY_FIELDS = FIELDS | {'inventory_id', 'added_at', 'removed_at', 'operation_id'}
 DATE_FIELDS = {'purchased_on', 'expires_on'}
