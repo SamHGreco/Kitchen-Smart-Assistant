@@ -48,6 +48,13 @@ class UIState(Enum):
     OTHER = "other"
 
 
+class RecalibrationReason(Enum):
+    """Why the gas sensor's calibration is flagged as potentially stale."""
+
+    TEMPERATURE = "TEMPERATURE"
+    HUMIDITY = "HUMIDITY"
+
+
 def celsius_to_fahrenheit(celsius: float) -> float:
     """Convert a Celsius temperature to Fahrenheit."""
     return celsius * 9.0 / 5.0 + 32.0
@@ -63,6 +70,8 @@ class EnvironmentStatus:
 
     temperature_c: float | None
     humidity_percent: float | None
+    temp_alarm: bool
+    humidity_alarm: bool
     gas_raw: int | None
     gas_voltage: float | None
     gas_alarm: bool
@@ -80,3 +89,63 @@ class EnvironmentStatus:
         if self.temperature_c is None:
             return None
         return celsius_to_fahrenheit(self.temperature_c)
+
+
+@dataclass(frozen=True)
+class GasAlarmThresholds:
+    """Current gas alarm tuning, readable/settable at runtime by the UI subsystem."""
+
+    threshold_voltage: float
+    hysteresis_voltage: float
+    debounce_seconds: float
+
+
+@dataclass(frozen=True)
+class TempAlarmThresholds:
+    """Current high-temperature alarm tuning, readable/settable at runtime by the UI subsystem."""
+
+    threshold_c: float
+    hysteresis_c: float
+    debounce_seconds: float
+
+
+@dataclass(frozen=True)
+class HumidityAlarmThresholds:
+    """Current high-humidity alarm tuning, readable/settable at runtime by the UI subsystem."""
+
+    threshold_percent: float
+    hysteresis_percent: float
+    debounce_seconds: float
+
+
+@dataclass(frozen=True)
+class GasCalibrationStatus:
+    """Everything Bobby's GUI needs to display gas-sensor calibration state.
+
+    `baseline_*`/`*_difference_*`/`calibration_timestamp` are None when
+    `is_calibrated` is False (no calibration has ever been saved).
+    """
+
+    is_calibrated: bool
+    baseline_voltage: float | None
+    current_voltage: float | None
+    alarm_threshold_voltage: float
+    temperature_baseline_c: float | None
+    current_temperature_c: float | None
+    temperature_difference_c: float | None
+    humidity_baseline_rh: float | None
+    current_humidity_rh: float | None
+    humidity_difference_rh: float | None
+    recalibration_needed: bool
+    recalibration_reasons: tuple[str, ...]
+    gas_alarm_active: bool
+    calibration_timestamp: datetime | None
+
+
+@dataclass(frozen=True)
+class CalibrationResult:
+    """Result of a `calibrate_gas_sensor()` call."""
+
+    success: bool
+    message: str
+    status: GasCalibrationStatus
