@@ -1,1 +1,14 @@
+# Python-generated files
+__pycache__/
+*.py[cod]
+
+# Python virtual environments
+.venv/
+venv/
+
+# Bobby's local product databases
 /src/product_id/data/
+
+# Temporary files
+*.log
+*.tmp
