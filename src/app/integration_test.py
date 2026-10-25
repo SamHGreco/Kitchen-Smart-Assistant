@@ -1,6 +1,7 @@
 
-"""Initial Bobby + Sam integration test using mock sensors."""
+"""Kitchen Smart Assistant: silent real-hardware integration test."""
 
+import logging
 import sys
 from pathlib import Path
 
@@ -13,8 +14,12 @@ for directory in (SRC, UI):
 
 from app import config
 
-# Select mock drivers before constructing the subsystem.
-config.HARDWARE_MODE = False
+# Real sensors remain enabled.
+config.HARDWARE_MODE = True
+
+# Silent testing flag.
+# The buzzer driver must explicitly support this setting.
+config.BUZZER_ENABLED = False
 
 from app.shared.models import ActivityType, UIState
 from environment.environment_manager import EnvironmentManager
@@ -25,6 +30,17 @@ from main import run_app
 
 
 def main():
+    logging.basicConfig(
+        level=config.LOG_LEVEL,
+        format=config.LOG_FORMAT,
+    )
+
+    logger = logging.getLogger(__name__)
+
+    logger.info("Starting Kitchen Smart Assistant")
+    logger.info("Hardware mode: REAL")
+    logger.info("Buzzer requested OFF for silent testing")
+
     power = PowerManager()
     environment = EnvironmentManager(power_manager=power)
 
@@ -52,6 +68,7 @@ def main():
     finally:
         environment.stop()
         power.stop()
+        logger.info("Application stopped")
 
 
 if __name__ == "__main__":
