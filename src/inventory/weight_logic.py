@@ -67,7 +67,7 @@ def apply_weight_reading(conn, item, sensor):
     )
 
 
-def create_item_with_weight(conn, sensor, name, unit, barcode=None, category=None,
+def create_item_with_weight(conn, sensor, name, unit, barcode=None, brand_name=None, category=None,
                             expiration_date=None, location="pantry") -> InventoryItem:
     """
     Captures settled weight reading and creates a new weight-tracked
@@ -83,7 +83,7 @@ def create_item_with_weight(conn, sensor, name, unit, barcode=None, category=Non
 
     return create_item(
         conn, name=name, quantity_type=QuantityType.WEIGHT, initial_quantity=weight,
-        unit=unit, barcode=barcode, category=category, expiration_date=expiration_date,
-        location=location, multiple_group=name, multiple_index=next_index,
+        unit=unit, barcode=barcode, brand_name=brand_name, category=category,
+        expiration_date=expiration_date, location=location,
+        multiple_group=name, multiple_index=next_index,
     )
-

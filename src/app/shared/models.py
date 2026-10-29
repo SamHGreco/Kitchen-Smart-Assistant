@@ -171,6 +171,7 @@ class InventoryItem:
 
     item_id: int
     barcode: str | None
+    brand_name: str | None
     name: str
     category: str | None
     quantity_type: QuantityType
@@ -184,3 +185,32 @@ class InventoryItem:
     location: str
     status: ItemStatus
     last_updated: datetime
+
+
+class OperationType(Enum):
+    """Types of logged inventory events MR20 requires: additions, removals,
+    returns, and location changes, with QUANTITY_UPDATED in addition. """
+
+    ADDED = "added"
+    REMOVED = "removed"
+    QUANTITY_UPDATED = "quantity_updated"
+    LOCATION_CHANGED = "location_changed"
+    RETURNED = "returned"
+
+
+@dataclass(frozen=True)
+class InventoryLogEntry:
+    """One row of the MR20 history log. Kept even after the item itself
+    is deleted, item_name is a snapshot copy for that reason.
+    """
+
+    log_id: int
+    item_id: int | None
+    item_name: str
+    operation_type: OperationType
+    quantity_before: float | None
+    quantity_after: float | None
+    location_before: str | None
+    location_after: str | None
+    note: str | None
+    timestamp: datetime

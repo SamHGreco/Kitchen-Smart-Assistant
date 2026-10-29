@@ -71,6 +71,7 @@ def create_item_from_product(
         name=product.item_name,
         unit="g",
         barcode=product.item_upc,
+        brand_name=product.brand_name,
         category=product.item_category,
         expiration_date=expiration_date,
         location=location,
