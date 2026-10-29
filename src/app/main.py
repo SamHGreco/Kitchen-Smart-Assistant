@@ -165,6 +165,7 @@ def main() -> None:
             demo=False,
             serial_enabled=args.serial,
             sensors=sensors,
+            gas_calibration=environment,
             size=args.size,
             fullscreen=args.fullscreen,
             drain_events=drain_events,
