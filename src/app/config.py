@@ -33,7 +33,7 @@ ADS1115_GAIN: float = 1.0  # +-4.096V full-scale range - MockADS1115Driver.read_
 
 # Voltage thresholds are placeholders until MQ-4 bench calibration is complete.
 GAS_ALARM_VOLTAGE_THRESHOLD: float = 1.5
-GAS_ALARM_HYSTERESIS_VOLTAGE: float = 0.15
+GAS_ALARM_HYSTERESIS_VOLTAGE: float = 0.005
 GAS_ALARM_DEBOUNCE_SECONDS: float = 3.0
 GAS_POLL_INTERVAL_SECONDS: float = 1.0
 GAS_SAMPLE_FILTER_WINDOW: int = 5

@@ -67,63 +67,148 @@ class _CalibrationScreens:
                 control.config(state='disabled')
 
     def show_gas_calibration(self):
-        sheet = Sheet(self, 'MQ-4 calibration / startup tuning')
+        sheet = Sheet(self, 'MQ-4 Gas Sensor Calibration')
         service = self.gas_calibration
-        left = tk.Frame(sheet.body, bg=CARD)
-        left.pack(side='left', fill='both', expand=True, padx=12, pady=10)
-        right = tk.Frame(sheet.body, bg=CARD)
-        right.pack(side='right', fill='both', expand=True, padx=12, pady=10)
-        label(left, 'Clean-air baseline', 17, True).pack(anchor='w')
-        label(left, '', 11, fg=MUTED, wraplength=325,
-              justify='left').pack(anchor='w', pady=8)
-        clean, warm = tk.BooleanVar(value=False), tk.BooleanVar(value=False)
-        for text, variable in [('Known clean air confirmed', clean),
-                               ('Conditioning / warm-up complete', warm)]:
-            tk.Checkbutton(left, text=text, variable=variable, bg=CARD, font=(FONT, 11),
-                           anchor='w', wraplength=315, justify='left').pack(anchor='w', pady=5)
-        note = label(left, '' if service is None else
-                     'Baseline capture takes about 12 seconds.\nMonitoring continues independently.',
-                     11, fg=MUTED, wraplength=320, justify='left')
-        note.pack(anchor='w', pady=8)
-        label(right, 'Thresholds for next launch', 17, True).pack(anchor='w')
-        values = GasSettings(1.5, 0.15, 3.0)
-        load_error = None
-        if service:
+
+        label(
+            sheet.body,
+            'Clean-Air Baseline Calibration',
+            19,
+            True
+        ).pack(pady=(15, 8))
+
+        label(
+            sheet.body,
+            'This calibration records the current MQ-4 voltage, '
+            'temperature, and humidity as the new baseline. '
+            'The gas alarm threshold is calculated automatically '
+            'and saved for future application launches.',
+            12,
+            fg=MUTED,
+            wraplength=680,
+            justify='left'
+        ).pack(padx=20, pady=8)
+
+        clean_air = tk.BooleanVar(value=False)
+        warmed_up = tk.BooleanVar(value=False)
+
+        tk.Checkbutton(
+            sheet.body,
+            text='I confirm the sensor is in clean air.',
+            variable=clean_air,
+            bg=CARD,
+            font=(FONT, 12),
+            anchor='w'
+        ).pack(anchor='w', padx=25, pady=5)
+
+        tk.Checkbutton(
+            sheet.body,
+            text='I confirm the sensor has completed warm-up.',
+            variable=warmed_up,
+            bg=CARD,
+            font=(FONT, 12),
+            anchor='w'
+        ).pack(anchor='w', padx=25, pady=5)
+
+        status_label = label(
+            sheet.body,
+            '',
+            12,
+            fg=MUTED,
+            wraplength=680,
+            justify='left'
+        )
+        status_label.pack(padx=20, pady=12)
+
+        note = label(
+            sheet.body,
+            '',
+            12,
+            fg=MUTED,
+            wraplength=680,
+            justify='left'
+        )
+        note.pack(padx=20, pady=10)
+
+        def display_status(status):
+            if not status.is_calibrated:
+                status_label.config(
+                    text='Status: Not calibrated'
+                )
+                return
+
+            text = (
+                f'Baseline: {status.baseline_voltage:.3f} V\n'
+                f'Alarm threshold: '
+                f'{status.alarm_threshold_voltage:.3f} V'
+            )
+
+            if status.recalibration_needed:
+                text += '\nRecalibration recommended.'
+
+            status_label.config(text=text)
+
+        if service is None:
+            note.config(
+                text='Environmental manager not connected.',
+                fg=RED
+            )
+        else:
             try:
-                values = service.startup_settings(values)
+                display_status(
+                    service.get_gas_calibration_status()
+                )
             except Exception as exc:
-                load_error = str(exc)
-                note.config(text=load_error, fg=RED)
-        variables = {key: tk.StringVar(value=str(value)) for key, value in asdict(values).items()}
-        form = tk.Frame(right, bg=CARD)
-        form.pack(fill='x', pady=5)
-        form.columnconfigure(0, weight=1)
-        for row, (key, caption) in enumerate([('threshold_voltage', 'Threshold (ADC volts)'),
-                                              ('hysteresis_voltage', 'Hysteresis (volts)'),
-                                              ('debounce_seconds', 'Debounce (seconds)')]):
-            touch_field(self, form, caption, variables[key], row, numeric=True)
-        label(right, '',
-              10, fg=RED, wraplength=325, justify='left').pack(anchor='w', pady=3)
+                note.config(text=str(exc), fg=RED)
+
         controls = []
-        def capture_baseline():
-            clean_air, warmed_up = clean.get(), warm.get()
-            self._calibration_job(
-                sheet, note, controls,
-                lambda: service.capture_baseline(clean_air_confirmed=clean_air, warmup_confirmed=warmed_up),
-                lambda result: f"Saved {result['samples']} samples; mean {result['mean_voltage']:.4f} V. NOT ppm.",
-                warn_after=20)
 
-        def save_thresholds():
-            entered_values = {key: variable.get() for key, variable in variables.items()}
-            self._calibration_job(
-                sheet, note, controls, lambda: service.save_startup(entered_values),
-                lambda result: 'Startup tuning saved. Restart Team_Launcher in a controlled test to apply it.')
+        def perform_calibration():
+            if not clean_air.get() or not warmed_up.get():
+                note.config(
+                    text='Confirm clean air and sensor warm-up '
+                         'before calibrating.',
+                    fg=RED
+                )
+                return
 
-        capture = button(sheet.footer, 'Capture baseline', capture_baseline)
-        capture.pack(side='left')
-        save = button(sheet.footer, 'Save for next launch', save_thresholds, primary=True)
-        save.pack(side='right')
-        controls.extend((capture, save))
-        if service is None or load_error:
-            for control in controls:
-                control.config(state='disabled')
+            def calibrate():
+                result = service.calibrate_gas_sensor()
+
+                if not result.success:
+                    raise RuntimeError(result.message)
+
+                return result
+
+            def describe(result):
+                display_status(result.status)
+
+                return (
+                    f'{result.message}\n'
+                    f'Baseline: '
+                    f'{result.status.baseline_voltage:.3f} V\n'
+                    f'Alarm threshold: '
+                    f'{result.status.alarm_threshold_voltage:.3f} V'
+                )
+
+            self._calibration_job(
+                sheet,
+                note,
+                controls,
+                calibrate,
+                describe,
+                warn_after=5
+            )
+
+        capture_button = button(
+            sheet.footer,
+            'Capture Baseline',
+            perform_calibration,
+            primary=True
+        )
+
+        capture_button.pack(side='right')
+        controls.append(capture_button)
+
+        if service is None:
+            capture_button.config(state='disabled')
