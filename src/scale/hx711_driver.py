@@ -40,11 +40,21 @@ class HX711Driver:
          time.sleep(0.0001)  # Hold high for at least 60us, 100us margin for safety
 
 
-    def raw_read(self) -> int:
+    def raw_read(self, retries: int = 3) -> int:
          """
          Blocks until DOUT indicates data is ready, then clocks out a 24-bit 
          reading on SCK. Returns the signed raw value with no scaling applied.
+         Retries a few times after timeout before raising an error.
          """
+         for attempt in range(retries):
+             try:
+                 return self._raw_read_once()
+             except TimeoutError:
+                 if attempt == retries - 1:
+                     raise
+                 time.sleep(0.05)
+         
+    def _raw_read_once(self) -> int:
          timeout_seconds = 1.0
          start_time = time.time()
          while GPIO.input(self._dout_pin) == GPIO.HIGH:
