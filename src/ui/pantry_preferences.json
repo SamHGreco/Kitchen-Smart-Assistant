@@ -1,0 +1,6 @@
+{
+  "temperature_unit": "F",
+  "clock_format": "12h",
+  "idle_seconds": 60,
+  "expiry_warning_days": 3
+}

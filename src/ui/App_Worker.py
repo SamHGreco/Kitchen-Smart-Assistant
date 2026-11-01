@@ -53,6 +53,7 @@ class Worker:
     def set_enabled(self, enabled):
         if enabled:
             self.enabled.set()
+            self.scanner_failed = False
         else:
             self.enabled.clear()
             self.cancel_scan.set()
@@ -228,8 +229,6 @@ class Worker:
                         serial = self.settings.get('serial', {})
                         self.reader = self.reader_factory(serial.get('port', '/dev/serial0'), int(serial.get('baud', 115200)))
                         self.reader.open()
-                        self.reader.stop_decode()
-                        self.reader.verify_configuration()
                     except Exception as exc:
                         self.scanner_failed = True
                         self.enabled.clear()
@@ -255,7 +254,8 @@ class Worker:
                     if not self.enabled.is_set() or not self.commands.empty() or self.stopping.is_set():
                         continue
                     try:
-                        raw = self.reader.scan_once(timeout=2, cancel=self.cancel_scan)
+                        self.reader._serial().reset_input_buffer()
+                        raw = self.reader.read_barcode(timeout=3, cancel=self.cancel_scan)
                     except Exception as exc:
                         if isinstance(exc, ScanCancelled) or exc.__class__.__name__ == 'ScanCancelled':
                             continue
