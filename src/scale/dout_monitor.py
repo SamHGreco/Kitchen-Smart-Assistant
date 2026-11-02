@@ -8,8 +8,8 @@ Ctrl+C to stop.
 import time
 import RPi.GPIO as GPIO
 
-DOUT_PIN = 5
-SCK_PIN = 6
+DOUT_PIN = 20
+SCK_PIN = 12
 
 GPIO.setmode(GPIO.BCM)
 GPIO.setup(DOUT_PIN, GPIO.IN)

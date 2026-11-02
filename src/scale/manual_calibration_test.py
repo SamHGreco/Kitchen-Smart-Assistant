@@ -13,8 +13,8 @@ from scale.hx711_driver import HX711Driver
 from scale.calibration import calibrate_from_known_weight
 from scale.interface import HX711WeightSensor
 
-DOUT_PIN = 5
-SCK_PIN = 6
+DOUT_PIN = 20
+SCK_PIN = 12
 SAMPLES = 10
 KNOWN_WEIGHT_GRAMS = 120.0 # update to actual reference weight
 

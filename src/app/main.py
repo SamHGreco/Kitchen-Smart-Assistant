@@ -13,10 +13,15 @@ and LED alarms. This is for development only, not a safety feature.
 """
 from __future__ import annotations
 
+import random
+import time
 import argparse
 import logging
 import sys
 from pathlib import Path
+import threading
+
+
 
 SRC = Path(__file__).resolve().parents[1]
 UI = SRC / "ui"
@@ -35,6 +40,9 @@ from power.sleep_manager import PowerManager
 from Sensor_Interfaces import TeamSensors
 from Input_Validation import load_config
 from ui.main import run_app
+from Scale_Interface import ScaleReading
+from scale.calibration import CalibrationParams
+from scale.interface import HX711WeightSensor
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +109,69 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def build_scale_functions(scale_busy):
+    """Connects the calibrated HX711 scale into the zero-argument
+    read_scale/tare_scale callables PantryWindow expects. Returns
+    (None, None) in mock-hardware mode."""
+    if not config.HARDWARE_MODE:
+        return None, None
+
+    calibration = CalibrationParams(
+        zero_offset=config.SCALE_ZERO_OFFSET,
+        scale_factor=config.SCALE_SCALE_FACTOR,
+    )
+    sensor = HX711WeightSensor(
+        dout_pin=config.SCALE_DOUT_PIN,
+        sck_pin=config.SCALE_SCK_PIN,
+        calibration=calibration,
+    )
+
+    def read_scale():
+        scale_busy.set()
+        time.sleep(3.0)
+        try:
+            max_attempts = 15
+            required_agreement = 3
+            tolerance = config.SCALE_SETTLE_THRESHOLD_G
+
+            readings = []
+            for _ in range(max_attempts):
+                grams = sensor.read_weight()
+                readings.append(grams)
+                print(f"DEBUG sample {len(readings)}: {grams:.1f}g")
+                time.sleep(0.05 + random.uniform(0, 0.15))
+
+            clusters = []
+            for value in readings:
+                placed = False
+                for cluster in clusters:
+                    if abs(value - cluster[0]) <= tolerance:
+                        cluster.append(value)
+                        placed = True
+                        break
+                if not placed:
+                    clusters.append([value])
+
+            valid_clusters = [c for c in clusters if len(c) >= required_agreement]
+
+            if valid_clusters:
+                best = max(valid_clusters, key=lambda c: sum(c) / len(c))
+                return ScaleReading(float(sum(best) / len(best)), True, time.time())
+
+            return ScaleReading(float(max(readings)), False, time.time())
+        finally:
+            scale_busy.clear()
+
+    def tare_scale():
+        scale_busy.set()
+        try:
+            sensor.tare()
+        finally:
+            scale_busy.clear()
+
+    return read_scale, tare_scale
+
+
 def main() -> None:
     args = parse_args()
 
@@ -148,6 +219,7 @@ def main() -> None:
         ui_state=UIState,
     )
 
+
     settings = load_config(
         str(UI / "config.pi.json")
     )
@@ -155,6 +227,9 @@ def main() -> None:
     try:
         power.start()
         environment.start()
+        
+        scale_busy = threading.Event()
+        read_scale, tare_scale = build_scale_functions(scale_busy)
 
         logger.info(
             "Subsystems started; launching GUI"
@@ -165,6 +240,9 @@ def main() -> None:
             demo=False,
             serial_enabled=args.serial,
             sensors=sensors,
+            read_scale=read_scale,
+            tare_scale=tare_scale,
+            scale_busy=scale_busy,
             gas_calibration=environment,
             size=args.size,
             fullscreen=args.fullscreen,

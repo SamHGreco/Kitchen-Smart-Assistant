@@ -35,6 +35,7 @@ def run_app(
     sensors=None,
     read_scale=None,
     tare_scale=None,
+    scale_busy=None,
     scale_controller=None,
     gas_calibration=None,
     drain_events=None,
@@ -57,7 +58,8 @@ def run_app(
             settings,
             serial_enabled=serial_enabled,
             demo=demo,
-            warning_days=preferences['expiry_warning_days']
+            warning_days=preferences['expiry_warning_days'],
+            scale_busy=scale_busy,
         )
         root = tk.Tk()
         root.tk.call('tk', 'scaling', 1.15)

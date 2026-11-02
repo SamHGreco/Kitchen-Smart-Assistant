@@ -21,6 +21,7 @@ class Worker:
         demo=False,
         reader_factory=None,
         clock=None,
+        scale_busy=None,
         warning_days=3
     ):
         self.settings = settings
@@ -39,6 +40,7 @@ class Worker:
         self.pending = None
         self.reader = None
         self.scanner_failed = False
+        self.scale_busy = scale_busy
         self.next_scan = 0
         self.next_refresh = 0
 
@@ -247,6 +249,8 @@ class Worker:
                     if time.monotonic() >= self.next_refresh:
                         self.refresh(store)
                     if command or not self.enabled.is_set() or (not self.reader) or self.scanner_failed or self.pending:
+                        continue
+                    if self.scale_busy is not None and self.scale_busy.is_set():
                         continue
                     if time.monotonic() < self.next_scan:
                         continue
