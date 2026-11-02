@@ -59,10 +59,11 @@ class EnvironmentManager:
         alarm_controller: AlarmController | None = None,
         power_manager: object | None = None,
         poll_interval_seconds: float | None = None,
+        scale_busy=None,
     ) -> None:
-        self._temperature_humidity_monitor = temperature_humidity_monitor or TemperatureHumidityMonitor()
-        self._gas_monitor = gas_monitor or GasMonitor()
-        self._motion_monitor = motion_monitor or MotionMonitor()
+        self._temperature_humidity_monitor = temperature_humidity_monitor or TemperatureHumidityMonitor(scale_busy=scale_busy)
+        self._gas_monitor = gas_monitor or GasMonitor(scale_busy=scale_busy)
+        self._motion_monitor = motion_monitor or MotionMonitor(scale_busy=scale_busy)
         self._alarm_controller = alarm_controller or AlarmController()
         # Typed as `object` to avoid a hard dependency on PowerManager's
         # module; any object with notify_activity()/set_safety_alarm_active()

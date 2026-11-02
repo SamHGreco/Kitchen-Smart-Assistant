@@ -207,9 +207,12 @@ def main() -> None:
             )
         )
 
+    scale_busy = threading.Event()
+
     environment = EnvironmentManager(
         power_manager=power,
         alarm_controller=alarm_controller,
+        scale_busy=scale_busy,
     )
 
     sensors = TeamSensors(
@@ -228,7 +231,6 @@ def main() -> None:
         power.start()
         environment.start()
         
-        scale_busy = threading.Event()
         read_scale, tare_scale = build_scale_functions(scale_busy)
 
         logger.info(

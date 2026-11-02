@@ -66,6 +66,7 @@ class TemperatureHumidityMonitor:
         humidity_alarm_threshold_percent: float | None = None,
         humidity_alarm_hysteresis_percent: float | None = None,
         humidity_alarm_debounce_seconds: float | None = None,
+        scale_busy=None,
     ) -> None:
         self._driver = driver if driver is not None else _create_driver()
         self._poll_interval_seconds = (
@@ -122,6 +123,7 @@ class TemperatureHumidityMonitor:
 
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
+        self._scale_busy = scale_busy
 
     def start(self) -> None:
         """Start the background polling thread. Safe to call once; a no-op if already running."""
@@ -244,7 +246,8 @@ class TemperatureHumidityMonitor:
 
     def _run(self) -> None:
         while not self._stop_event.is_set():
-            self._poll_once()
+            if self._scale_busy is None or not self._scale_busy.is_set():
+                self._poll_once()
             self._stop_event.wait(self._poll_interval_seconds)
 
     def _poll_once(self) -> None:
