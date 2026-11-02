@@ -193,13 +193,6 @@ class EnvironmentManager:
         new "normal"), or if any needed sensor reading is currently
         unavailable (sensor fault).
         """
-        if self._gas_monitor.is_gas_alarm_active():
-            logger.warning("Gas sensor calibration refused: gas alarm is currently active")
-            return CalibrationResult(
-                success=False,
-                message="Cannot calibrate while a gas alarm is active - wait for normal conditions.",
-                status=self.get_gas_calibration_status(),
-            )
 
         gas_voltage = self._gas_monitor.get_gas_voltage()
         temperature_c = self._temperature_humidity_monitor.get_temperature_c()
