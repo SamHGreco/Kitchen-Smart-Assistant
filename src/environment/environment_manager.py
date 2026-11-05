@@ -195,7 +195,15 @@ class EnvironmentManager:
         unavailable (sensor fault).
         """
 
-        gas_voltage = self._gas_monitor.get_gas_voltage()
+        gas_reading = self._gas_monitor.get_reading()
+        if gas_reading.gas_alarm or self.is_gas_alarm_active():
+            logger.warning("Gas sensor calibration refused: a gas alarm is active")
+            return CalibrationResult(
+                success=False,
+                message="Cannot calibrate while a gas alarm is active.",
+                status=self.get_gas_calibration_status(),
+            )
+        gas_voltage = gas_reading.gas_voltage
         temperature_c = self._temperature_humidity_monitor.get_temperature_c()
         humidity_percent = self._temperature_humidity_monitor.get_humidity_percent()
         if gas_voltage is None or temperature_c is None or humidity_percent is None:

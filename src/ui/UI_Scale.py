@@ -143,28 +143,34 @@ class ScalePrompt:
         self.task = app.scale_task
         self.grams = None
         self.waiting = False
+        self.taring = False
         self.timer = None
-        self.sheet = Sheet(app, 'Update weight from scale?', self.close)
+        self.sheet = Sheet(app, 'Update weight from scale', self.close, compact=True)
         current = value.get().strip()
         self.sheet.close_button.config(text='Keep weight' if current else 'Skip')
-        label(self.sheet.body, 'Read this package from the scale?', 24, True,
-              wraplength=700).pack(pady=(22, 8))
+        label(self.sheet.body, 'Update weight from scale', 18, True,
+              wraplength=680).pack(pady=(12, 5))
         label(self.sheet.body, f"Current weight: {current + ' g' if current else 'not entered'}",
-              16, fg=MUTED).pack(pady=6)
-        self.readout = label(self.sheet.body, '-- g', 38, True, fg=TEAL)
-        self.readout.pack(pady=8)
+              13, fg=MUTED).pack(pady=3)
+        self.readout = label(self.sheet.body, '-- g', 32, True, fg=TEAL)
+        self.readout.pack(pady=5)
         info = ('DEMO: simulated 375 g. No hardware is read.' if app.demo else
-                'Place one package on the scale. Nothing is saved yet.')
+                'Tare only with the item removed; then place one package and Read scale.')
         if self.task.reader is None:
             info = 'Scale not connected. Keep the weight or enter it manually.'
-        self.note = label(self.sheet.body, info, 13, fg=MUTED, wraplength=690)
-        self.note.pack(padx=15, pady=8)
-        button(self.sheet.footer, 'Keep weight' if current else 'Skip', self.close).pack(side='left')
-        button(self.sheet.footer, 'Enter manually', self.manual).pack(side='left', padx=5)
+        self.note = label(self.sheet.body, info, 11, fg=MUTED, wraplength=680)
+        self.note.pack(padx=15, pady=5)
+        # The tare confirmation is the existing UI, using the existing tare callback.
+        self.tare_button = button(self.sheet.body, 'Tare scale', self.tare)
+        self.tare_button.config(pady=7)
+        self.tare_button.pack(pady=5)
+        if self.task.tare is None:
+            self.tare_button.config(state='disabled')
+        button(self.sheet.footer, 'Enter manually', self.manual).pack(side='left')
         self.use_button = button(self.sheet.footer, 'Use weight', self.use, primary=True)
         self.use_button.pack(side='right')
         self.use_button.config(state='disabled')
-        self.read_button = button(self.sheet.footer, 'Yes - read scale', self.read)
+        self.read_button = button(self.sheet.footer, 'Read scale', self.read)
         self.read_button.pack(side='right', padx=5)
         self.timer = app.root.after(80, self.poll)
 
@@ -176,7 +182,7 @@ class ScalePrompt:
             raise ValueError('Set quantity to 1 before weighing. Weigh each package separately.')
 
     def read(self):
-        if self.waiting or not self.valid_owner():
+        if self.waiting or self.taring or not self.valid_owner():
             return
         self.grams = None
         self.readout.config(text='-- g')
@@ -191,6 +197,7 @@ class ScalePrompt:
             return
         self.waiting = True
         self.read_button.config(state='disabled')
+        self.tare_button.config(state='disabled')
         self.note.config(text='Reading scale... Keep / Skip is still available.', fg=MUTED)
 
     def poll(self):
@@ -200,12 +207,24 @@ class ScalePrompt:
         if not self.valid_owner():
             self.close()
             return
+        if self.taring:
+            prompt = getattr(self.app, 'tare_prompt', None)
+            open_prompt = prompt is not None and not prompt.sheet.closed
+            running = self.task.thread is not None and self.task.thread.is_alive()
+            if not open_prompt and not running:
+                self.taring = False
+                self.read_button.config(state='normal', text='Read scale')
+                self.tare_button.config(state='normal' if self.task.tare else 'disabled')
+                self.note.config(text='Check zero, place the package, then tap Read scale.', fg=MUTED)
+            self.timer = self.app.root.after(80, self.poll)
+            return
         if self.waiting:
             result = self.task.poll()
             if result is not None:
                 self.waiting = False
                 self.grams, error = result
                 self.read_button.config(state='normal', text='Read again')
+                self.tare_button.config(state='normal' if self.task.tare else 'disabled')
                 if error:
                     self.note.config(text=error, fg=RED)
                 else:
@@ -216,7 +235,7 @@ class ScalePrompt:
         self.timer = self.app.root.after(80, self.poll)
 
     def use(self):
-        if self.waiting or self.grams is None or not self.valid_owner():
+        if self.waiting or self.taring or self.grams is None or not self.valid_owner():
             return
         try:
             self.one_package()
@@ -229,6 +248,8 @@ class ScalePrompt:
         self.close()
 
     def manual(self):
+        if self.taring:
+            return
         if not self.valid_owner():
             self.close()
             return
@@ -239,6 +260,9 @@ class ScalePrompt:
     def close(self):
         if self.sheet.closed:
             return
+        tare_prompt = getattr(self.app, 'tare_prompt', None)
+        if tare_prompt is not None and tare_prompt.owner is self.sheet:
+            tare_prompt.close()
         self.task.cancel()
         if self.timer is not None:
             self.app.root.after_cancel(self.timer)
@@ -246,6 +270,26 @@ class ScalePrompt:
         if getattr(self.app, 'weight_prompt', None) is self:
             self.app.weight_prompt = None
         self.sheet.close()
+
+    def tare(self):
+        if self.waiting or self.taring or not self.valid_owner():
+            return
+        if self.task.thread and self.task.thread.is_alive():
+            self.note.config(text='Wait for the previous scale operation to finish.', fg=RED)
+            return
+        if getattr(getattr(self.app, 'sensor_jobs', None), 'busy', False):
+            self.note.config(text='Wait for the calibration/settings operation to finish.', fg=RED)
+            return
+        # A previous measurement must not remain usable after the zero changes.
+        self.grams = None
+        self.readout.config(text='-- g')
+        self.use_button.config(state='disabled')
+        prompt = ask_tare(self.app, self.sheet)
+        if prompt is not None:
+            self.taring = True
+            self.read_button.config(state='disabled')
+            self.tare_button.config(state='disabled')
+            self.note.config(text='Finish the tare confirmation, then request a fresh reading.', fg=MUTED)
 
 
 #To complete testing without hardware
@@ -257,8 +301,11 @@ def demo_tare():
 def ask_tare(app, owner):
     if owner.closed or app.closing:
         return None
-    if getattr(app, 'weight_prompt', None) is not None:
-        return None
+    weight_prompt = getattr(app, 'weight_prompt', None)
+    # Allow tare from this weight prompt, not an unrelated screen or active read.
+    if weight_prompt is not None:
+        if owner is not weight_prompt.sheet or weight_prompt.waiting or weight_prompt.taring:
+            return None
     previous = getattr(app, 'tare_prompt', None)
     if previous is not None:
         previous.close()

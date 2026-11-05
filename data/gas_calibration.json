@@ -1,0 +1,6 @@
+{
+  "gas_baseline_voltage": 2.554675,
+  "temperature_baseline_c": 20.8,
+  "humidity_baseline_rh": 54,
+  "calibration_timestamp": "2026-11-05T00:51:43.214993+00:00"
+}

@@ -39,7 +39,11 @@ def build_config_command(pid: int, fid: int, value: bytes) -> bytes:
     return bytes([0x21, pid, fid]) + length + value
 #Configuration settings for now
 GROCERY_PROFILE = (
-    ('trigger mode', 0x61, 0x41, b'\x00'),
+    ('trigger mode', 0x61, 0x41, b'\x01'),
+    ('illumination only during decoding', 0x62, 0x41, b'\x02'),
+    ('no sensing illumination', 0x62, 0x44, b'\x00'),
+    ('no sensing aiming light', 0x62, 0x45, b'\x00'),
+    ('aiming light off', 0x62, 0x42, b'\x00'),
     ('plain output / no data packing', 0x51, 0x43, b'\x00'),
     ('empty barcode prefix', 0x51, 0xC1, b''),
     ('CR/LF barcode suffix', 0x51, 0xC2, b'\r\n'),
@@ -213,16 +217,22 @@ class AtomicBarcodeReader:
         return None
 
     def scan_once(self, timeout: float=10.0, cancel: Event | None=None) -> str | None:
+        if cancel is not None and cancel.is_set():
+            self.stop_decode()
+            raise ScanCancelled('Scan cancelled before triggering.')
         self._serial().reset_input_buffer()
         try:
+            LOG.info("SCANNER START command - timeout %.2f seconds",timeout)
             self.send_command(bytes.fromhex('32 75 01'))
             barcode = self.read_barcode(timeout, cancel=cancel)
-        except BaseException:
+        except BaseException as exc:
+            LOG.info("SCANNER STOP - interrupted by %s",type(exc).__name__)
             try:
                 self.stop_decode()
             except Exception as exc:
                 raise ScannerError('Unknown state, reboot and verify settings.') from exc
             raise
+        LOG.info("SCANNER STOP - normal completion")
         self.stop_decode()
         return barcode
 

@@ -2,7 +2,7 @@
 #Stand in for now, needs further testing with hardware and code. Connects existing sensor managers
 # NOTE will need to relook at how the gas triggering will be handled with the baseline
 
-
+import traceback
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -81,6 +81,12 @@ class PlaceholderSensors:
 
     def set_ui_home(self, home):
         pass
+#sleep timout
+    def set_sleep_timeout(self, seconds):
+        pass
+#sleep inhibit
+    def set_sleep_inhibited(self, active):
+        pass
 
     def get_gas_settings(self):
         raise RuntimeError('No gas controller connected. settings are not applied.')
@@ -94,10 +100,11 @@ class PlaceholderSensors:
 
 class TeamSensors(PlaceholderSensors):
     def __init__(self, environment, power, activity_type, ui_state, *,
-                 weight_snapshot=None, reset_alarm=None, max_age_seconds=5):
+                 weight_snapshot=None, weight_deferred=None, reset_alarm=None, max_age_seconds=5):
         self.environment, self.power = environment, power
         self.activity_type, self.ui_state = activity_type, ui_state
         self.weight_snapshot = weight_snapshot
+        self.weight_deferred=weight_deferred
         self.reset_callback = reset_alarm
         self.max_age_seconds = float(max_age_seconds)
         if not math.isfinite(self.max_age_seconds) or self.max_age_seconds <= 0:
@@ -128,12 +135,40 @@ class TeamSensors(PlaceholderSensors):
             try:
                 w = self.weight_snapshot()
                 wfresh = self._fresh(w.get('timestamp'))
-                fault = fault or bool(w.get('fault')) or not wfresh
-                weight = w.get('detected') if wfresh else None
-                grams = w.get('grams') if wfresh else None
-                if w.get('fault') or not wfresh:
+                wfault = bool(w.get('fault'))
+
+                calibration_pending = (
+                    wfresh and wfault
+                    and str(w.get('note') or '').strip() ==
+                    'Calibration saved. Waiting for the next reading.'
+                )
+
+                deferred = (
+                    not wfresh and not wfault
+                    and self.weight_deferred is not None
+                    and self.weight_deferred()
+                )
+
+                # Preserve environmental faults. Classify only the scale here.
+                fault = (
+                    fault
+                    or (wfault and not calibration_pending)
+                    or (not wfresh and not deferred)
+                )
+
+                # Never present an unavailable measurement as a valid weight.
+                usable = wfresh and not wfault
+                weight = w.get('detected') if usable else None
+                grams = w.get('grams') if usable else None
+
+                if calibration_pending:
+                    scale_note = ' / Scale updating after calibration'
+                elif deferred:
+                    scale_note = ' / Scale reading pending after scanner activity'
+                elif wfault or not wfresh:
                     scale_note = ' / ' + str(w.get('note') or 'Scale unavailable')
             except Exception:
+                traceback.print_exc()
                 fault = True
                 scale_note = ' / Scale interface error'
         active = (safety == 'ALARM' or alarm is True or
@@ -166,6 +201,14 @@ class TeamSensors(PlaceholderSensors):
     def _health(status, name):
         value = getattr(status, name, None)
         return getattr(value, 'name', value)
+
+    def set_sleep_timeout(self, seconds):
+        if self.power:
+            self.power.set_inactivity_timeout(seconds)
+
+    def set_sleep_inhibited(self, active):
+        if self.power:
+            self.power.set_sleep_inhibited(active)
 
     def notify_weight(self):
         if self.power:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+from itertools import count
 
 from scale.hx711_driver import HX711Driver
 import scale.hx711_driver as hx711_driver_module
@@ -48,6 +49,10 @@ def fake_gpio(monkeypatch):
     def _install(bits=None):
         gpio = FakeGPIO(bits)
         monkeypatch.setattr(hx711_driver_module, "GPIO", gpio)
+        # Bit/sign tests are not host-scheduler timing tests. Use deterministic
+        # nanoseconds so unrelated host preemption cannot exhaust scripted bits.
+        ticks = count(0, 1000)
+        monkeypatch.setattr(hx711_driver_module.time, "perf_counter_ns", lambda: next(ticks))
         return gpio
     return _install
 
@@ -97,3 +102,12 @@ def test_init_raises_without_gpio_available(monkeypatch):
     monkeypatch.setattr(hx711_driver_module, "GPIO", None)
     with pytest.raises(RuntimeError):
         HX711Driver(dout_pin=5, sck_pin=6)
+
+def test_clock_pulse_rejected_when_scheduler_stretches_it(fake_gpio, monkeypatch):
+    gpio = fake_gpio()
+    driver = HX711Driver(dout_pin=5, sck_pin=6)
+    ticks = iter((0, 1000, 2000, 60000))
+    monkeypatch.setattr(hx711_driver_module.time, "perf_counter_ns", lambda: next(ticks))
+    with pytest.raises(hx711_driver_module.ClockTimingError):
+        driver._pulse(read_bit=False)
+    assert gpio.output_calls[-1] == (6, gpio.LOW)

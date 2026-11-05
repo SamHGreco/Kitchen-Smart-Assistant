@@ -3,6 +3,7 @@ Real inventory backing for Store; replacement of stand-in.
 """
 
 from __future__ import annotations
+from pathlib import Path
 from datetime import datetime
 
 import product_id.product_database
@@ -68,7 +69,9 @@ class Store:
 
     def __enter__(self):
         try:
-            self.conn = get_connection()
+            inventory_path = Path(self.settings['inventory'])
+            inventory_path.parent.mkdir(parents=True, exist_ok=True)
+            self.conn = get_connection(inventory_path)
             init_db(self.conn)
             self.products = product_id.product_database.ProductDatabase(
                 self.settings['catalog'], self.settings['products']

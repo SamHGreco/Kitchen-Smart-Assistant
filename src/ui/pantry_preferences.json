@@ -2,5 +2,10 @@
   "temperature_unit": "F",
   "clock_format": "12h",
   "idle_seconds": 60,
-  "expiry_warning_days": 3
+  "expiry_warning_days": 3,
+  "gas_draft": {
+    "threshold_voltage": 5.1038,
+    "hysteresis_voltage": 0.15,
+    "debounce_seconds": 3.0
+  }
 }

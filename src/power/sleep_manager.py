@@ -9,6 +9,7 @@ UI/display implementation (owned by the UI subsystem).
 from __future__ import annotations
 
 import logging
+import math
 import threading
 from datetime import datetime, timezone
 
@@ -51,6 +52,7 @@ class PowerManager:
         self._transaction_active = False
         self._ui_state = UIState.HOME
         self._safety_alarm_active = False
+        self._sleep_inhibited = False
 
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
@@ -111,6 +113,37 @@ class PowerManager:
         if needs_wake:
             self._request_wake()
 
+    def set_inactivity_timeout(self, seconds: float) -> None:
+        """Apply a live UI preference. Zero disables automatic sleep.
+
+        Start a fresh interval when saving. UI persistence is owned by the
+        preference file, not by this manager.
+        """
+        if isinstance(seconds, bool):
+            raise ValueError('Sleep seconds must be a number from 0 to 3600.')
+        value = float(seconds)
+        if not math.isfinite(value) or not 0 <= value <= 3600:
+            raise ValueError('Sleep seconds must be from 0 to 3600.')
+        with self._lock:
+            self._inactivity_timeout_seconds = value
+            self._last_activity_time = datetime.now(timezone.utc)
+            self._display_awake = True
+        logger.info('Display inactivity timeout updated: %.0fs (0 = never).', value)
+
+    def set_sleep_inhibited(self, active: bool) -> None:
+        """Keep a full idle interval after motion/weight/faults/forms clear.
+
+        This complements, and never disables, the existing alarm and
+        transaction guards. Merely having the scanner idle is NOT a hold.
+        """
+        with self._lock:
+            active = bool(active)
+            was_inhibited = self._sleep_inhibited
+            self._sleep_inhibited = active
+            if active or was_inhibited:
+                self._last_activity_time = datetime.now(timezone.utc)
+                self._display_awake = True
+
     def is_display_awake(self) -> bool:
         """Current display power state. False means sleep has been requested."""
         with self._lock:
@@ -123,7 +156,7 @@ class PowerManager:
 
     def _evaluate_sleep(self) -> None:
         with self._lock:
-            if not self._display_awake:
+            if not self._display_awake or self._sleep_inhibited:
                 return
             inactivity_seconds = (
                 datetime.now(timezone.utc) - self._last_activity_time

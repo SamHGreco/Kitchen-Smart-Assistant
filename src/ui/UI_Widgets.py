@@ -33,27 +33,57 @@ def button(parent, text, command, primary=False, danger=False, width=None):
 
 class Sheet:
 
-    def __init__(self, app, title, on_cancel=None):
+    def __init__(self, app, title, on_cancel=None, *, compact=False):
         self.app = app
         self.closed = False
+        self.title = title
+        self.compact = compact
         app.worker.set_enabled(False)
         if hasattr(app, 'safe_sensor_call'):
             app.safe_sensor_call('set_ui_home', False)
         self.frame = tk.Frame(app.root, bg=BG)
-        self.frame.place(x=0, y=0, relwidth=1, relheight=1)
+        top = app.header_bottom() if hasattr(app, 'header_bottom') else look.HEADER_HEIGHT
+        self.frame.place(x=0, y=top, relwidth=1, relheight=1, height=-top)
         self.frame.lift()
         app.sheets.append(self)
-        header = tk.Frame(self.frame, bg=TEAL, height=56)
-        header.pack(fill='x')
-        header.pack_propagate(False)
-        label(header, title, 17, True, 'white', TEAL).pack(side='left', padx=18)
         self.cancel_callback = on_cancel or self.close
-        self.close_button = button(header, 'Close', self.cancel_callback)
-        self.close_button.pack(side='right', padx=8, pady=5)
+        if not compact:
+            header = tk.Frame(self.frame, bg=TEAL, height=56)
+            header.pack(fill='x')
+            header.pack_propagate(False)
+            label(header, title, 17, True, 'white', TEAL).pack(side='left', padx=18)
+            self.close_button = button(header, 'Close', self.cancel_callback)
+            self.close_button.pack(side='right', padx=8, pady=5)
         self.footer = tk.Frame(self.frame, bg=BG)
         self.footer.pack(side='bottom', fill='x', padx=16, pady=8)
-        self.body = tk.Frame(self.frame, bg=CARD, highlightthickness=1, highlightbackground=LINE)
-        self.body.pack(fill='both', expand=True, padx=16, pady=(10, 0))
+        if compact:
+            # Actions use the left/right edges; reserve the center for Close.
+            self.footer.config(height=44)
+            self.footer.pack_propagate(False)
+            self.close_button = button(self.footer, 'Close', self.cancel_callback)
+            self.close_button.config(pady=8)
+            self.close_button.place(relx=0.5, rely=0.5, anchor='center')
+            # A touch-draggable scrollbar protects content at 800 x 480, including
+            # when the persistent monitoring banner reduces the available height.
+            holder = tk.Frame(self.frame, bg=CARD, highlightthickness=1,
+                              highlightbackground=LINE)
+            holder.pack(fill='both', expand=True, padx=16, pady=(8, 0))
+            canvas = tk.Canvas(holder, bg=CARD, highlightthickness=0, borderwidth=0)
+            scrollbar = tk.Scrollbar(holder, orient='vertical', command=canvas.yview)
+            scrollbar.pack(side='right', fill='y')
+            canvas.pack(side='left', fill='both', expand=True)
+            canvas.configure(yscrollcommand=scrollbar.set)
+            self.body = tk.Frame(canvas, bg=CARD)
+            window = canvas.create_window((0, 0), window=self.body, anchor='nw')
+            self.body.bind('<Configure>', lambda event: canvas.configure(
+                scrollregion=canvas.bbox('all')))
+            canvas.bind('<Configure>', lambda event: canvas.itemconfigure(
+                window, width=event.width))
+            self.canvas = canvas
+        else:
+            self.body = tk.Frame(self.frame, bg=CARD, highlightthickness=1,
+                                 highlightbackground=LINE)
+            self.body.pack(fill='both', expand=True, padx=16, pady=(10, 0))
         if hasattr(app, 'place_safety_banner'):
             app.place_safety_banner()
 

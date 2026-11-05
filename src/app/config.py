@@ -75,8 +75,8 @@ LOG_FORMAT: str = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 
 
 # HX711 scale, calibrated via manual_calibration_test.py
-SCALE_DOUT_PIN: int = 20
-SCALE_SCK_PIN: int = 12
+SCALE_DOUT_PIN: int = 5
+SCALE_SCK_PIN: int = 6
 SCALE_ZERO_OFFSET: int = 367304
 SCALE_SCALE_FACTOR: float = 3382.7667
 SCALE_SETTLE_THRESHOLD_G: float = 2.0

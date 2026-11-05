@@ -1,11 +1,7 @@
-
 {
-  "_note": "This may change over time, but for now this is likely to work",
-
-  
-  "catalog": "../product_id/data/catalog.sqlite",
+   "catalog": "../product_id/data/catalog.sqlite",
   "products": "../product_id/data/barcodes.db",
-  "inventory": "../product_id/data/Inventory.db",
+  "inventory": "../../inventory.db",
   "serial": {
     "port": "/dev/serial0",
     "baud": 115200
@@ -37,10 +33,12 @@
     "dht11": 26
   },
   "scale": {
-    "capacity_g": null,
+    "capacity_g": 5000,
     "stable_spread_g": 5.0,
     "activity_delta_g": 10.0,
-    "max_raw_spread": 2000.0
+    "max_raw_spread": 2000.0,
+    "calibration_file": "scale_calibration.json",
+    "poll_interval_seconds": 2.0
   },
   "gas": {
     "ads_address": 72,
@@ -55,5 +53,13 @@
   "alarm": {
     "buzzer_active_high": true,
     "led_active_high": true
+  },
+  "scanner_scale": {
+    "auto_pause_on_weight": true,
+    "pause_above_g": 20.0,
+    "resume_below_g": 5.0,
+    "empty_seconds": 1.0,
+    "stop_timeout": 3.0,
+    "settle_seconds": 0.2
   }
 }

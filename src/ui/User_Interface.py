@@ -62,6 +62,9 @@ class PantryWindow(_CalibrationScreens, _HomeScreens, _ScanScreens, _InventorySc
         self.tare_prompt = None
         self.sensor_settings_sheet = None
         self.monitor_message = ''
+        self._scanner_error = False
+        self.environment_status_sheet = None
+        self.environment_status_label = None
         self.sheets = []
         self.pending = None
         self.active_form = None
@@ -78,6 +81,7 @@ class PantryWindow(_CalibrationScreens, _HomeScreens, _ScanScreens, _InventorySc
         self.last_raw = ''
         self.last_count = 0
         self.paused = False
+        self._last_scanner_gate_status = None
         self.ready = False
         self.serial_ready = False
         self.fatal = False
@@ -112,6 +116,8 @@ class PantryWindow(_CalibrationScreens, _HomeScreens, _ScanScreens, _InventorySc
         root.bind_all('<KeyPress>', self.activity, add='+')
         self._build_home()
         self.safety_banner = label(root, '', 12, True, fg='white', bg=RED, anchor='w')
+        # Apply the SAVED preference to the integrated power manager at startup.
+        self.safe_sensor_call('set_sleep_timeout', self.preferences['idle_seconds'])
         self.update_sensors()
         root.bind('<Configure>', self.resize, add='+')
         root.after(80, self.poll)
@@ -142,14 +148,19 @@ class PantryWindow(_CalibrationScreens, _HomeScreens, _ScanScreens, _InventorySc
         if sleeping:
             return 'break'
 
+    def header_bottom(self):
+        height = max(look.BASE_HEIGHT, self.root.winfo_height())
+        return round(look.HEADER_HEIGHT * height / look.BASE_HEIGHT)
+
     def place_safety_banner(self):
         offset = look.SAFETY_HEIGHT if self.monitor_message else 0
+        top = self.header_bottom()
         for sheet in self.sheets:
             if not sheet.closed:
-                sheet.frame.place_configure(y=offset, height=-offset)
+                sheet.frame.place_configure(y=top + offset, height=-(top + offset))
         if offset:
             self.safety_banner.config(text='  ' + self.monitor_message)
-            self.safety_banner.place(x=0, y=0, relwidth=1, height=look.SAFETY_HEIGHT)
+            self.safety_banner.place(x=0, y=top, relwidth=1, height=offset)
             self.safety_banner.lift()
         else:
             self.safety_banner.place_forget()
@@ -197,6 +208,7 @@ class PantryWindow(_CalibrationScreens, _HomeScreens, _ScanScreens, _InventorySc
                 self.last_clock_tick = 0
             elif kind == 'ready':
                 self.ready = True
+                self._scanner_error = False
                 self.serial_ready = event['serial_ready']
                 self.status.config(text='DEMO / fictional records' if self.demo else 'Ready to scan' if self.serial_ready else 'Manual input ready')
                 self.resume_if_allowed()
@@ -273,6 +285,7 @@ class PantryWindow(_CalibrationScreens, _HomeScreens, _ScanScreens, _InventorySc
                 if kind == 'fatal':
                     self.fatal = True
                 else:
+                    self._scanner_error = True
                     self.serial_ready = False
                 self.paused = True
                 self.pause_button.config(text='Resume')
@@ -287,12 +300,25 @@ class PantryWindow(_CalibrationScreens, _HomeScreens, _ScanScreens, _InventorySc
             self.last_clock_tick = now
             dt = self.local_now()
             fmt = '%I:%M:%S %p' if self.preferences['clock_format'] == '12h' else '%H:%M:%S'
-            self.clock_label.config(text=dt.strftime('%a %d %b %Y') + '\n' + dt.strftime(fmt))
+            self.clock_date.config(text=f'{dt.strftime("%A")}, {dt.day} {dt.strftime("%B %Y")}')
+            self.clock_label.config(text=dt.strftime(fmt))
             self.update_sleep_clock(dt)
         if now - self.last_sensor_tick >= 0.25:
             self.last_sensor_tick = now
             self.update_sensors()
         self.poll_sensor_jobs()
+        if (self.serial_ready and self.worker.enabled.is_set() and not self.pending
+                and not self.paused and not self.closing and not self.sheets):
+            gate = self.worker.scanner_gate
+            if gate.weight_present.is_set():
+                message = 'Scanner paused: remove weight, or calibrate/check the scale.'
+            elif gate.pause_requested.is_set():
+                message = 'Scanner paused: taking a scale sample.'
+            else:
+                message = self.worker.motion_window.status()
+            if message != self._last_scanner_gate_status:
+                self.status.config(text=message)
+                self._last_scanner_gate_status = message
         if self.closing and (not self.worker.thread.is_alive()):
             self.root.destroy()
             return

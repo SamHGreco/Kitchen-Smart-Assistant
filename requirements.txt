@@ -8,3 +8,7 @@ adafruit-circuitpython-dht
 
 # --- Testing ---
 pytest
+
+# Touchscreen and UART worker
+Pillow
+pyserial

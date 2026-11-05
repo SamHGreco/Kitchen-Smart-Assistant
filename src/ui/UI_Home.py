@@ -12,21 +12,44 @@ class _HomeScreens:
 
     def _build_home(self):
         self.header = tk.Frame(self.root, bg=TEAL)
-        label(self.header, look.APP_TITLE, 14, True, 'white', TEAL).pack(side='left', padx=(10, 8))
-        self.add_button = button(self.header, 'Add', self.manual_add)
-        self.add_button.pack(side='left', padx=3, pady=6)
-        self.update_button = button(self.header, 'Update', lambda: self.browse_records('update'))
-        self.update_button.pack(side='left', padx=3, pady=6)
-        self.remove_button = button(self.header, 'Remove', lambda: self.browse_records('remove'))
-        self.remove_button.pack(side='left', padx=3, pady=6)
-        self.alert_button = button(self.header, 'Alerts (0)', self.show_alerts)
-        self.alert_button.pack(side='left', padx=3, pady=6)
-        button(self.header, 'Settings', self.show_settings).pack(side='left', padx=3, pady=6)
-        for child in self.header.winfo_children():
-            if isinstance(child, tk.Button):
-                child.config(padx=8)
-        self.clock_label = label(self.header, '', 11, True, 'white', TEAL, justify='right')
-        self.clock_label.pack(side='right', padx=14)
+        self.header.columnconfigure(0, weight=5)
+        self.header.columnconfigure(1, weight=4)
+        self.header.columnconfigure(2, weight=3)
+        self.header.rowconfigure(0, weight=1)
+
+        nav = tk.Frame(self.header, bg=TEAL)
+        nav.grid(row=0, column=0, sticky='w', padx=(6, 0))
+        self.add_button = button(nav, 'Add', self.manual_add)
+        self.update_button = button(nav, 'Update', lambda: self.browse_records('update'))
+        self.remove_button = button(nav, 'Remove', lambda: self.browse_records('remove'))
+        self.alert_button = button(nav, 'Alerts (0)', self.show_alerts)
+        self.settings_button = button(nav, 'Settings', self.show_settings)
+        navigation = {'add': self.add_button, 'update': self.update_button,
+                      'remove': self.remove_button, 'alerts': self.alert_button,
+                      'settings': self.settings_button}
+        order = look.HOME_NAV_ORDER
+        columns = look.HOME_NAV_COLUMNS
+        if len(order) != len(navigation) or set(order) != set(navigation):
+            raise ValueError('HOME_NAV_ORDER must contain each navigation key once.')
+        if type(columns) is not int or not 1 <= columns <= 5:
+            raise ValueError('HOME_NAV_COLUMNS must be from 1 to 5.')
+        for index, name in enumerate(order):
+            control = navigation[name]
+            control.config(font=(FONT, 9, 'bold'), padx=4, pady=7)
+            control.grid(row=index // columns, column=index % columns,
+                         sticky='nsew', padx=2, pady=2)
+
+        clock = tk.Frame(self.header, bg=TEAL)
+        clock.grid(row=0, column=1, sticky='nsew', padx=4)
+        self.clock_date = label(clock, '', 11, True, 'white', TEAL, justify='center')
+        self.clock_date.pack(expand=True, anchor='s')
+        self.clock_label = label(clock, '', 13, True, 'white', TEAL, justify='center')
+        self.clock_label.pack(expand=True, anchor='n')
+
+        self.header_status = label(self.header, '', 9, True, 'white', TEAL,
+                                   justify='left', anchor='w')
+        self.header_status.grid(row=0, column=2, sticky='nsew', padx=(4, 8))
+        self.header_status.bind('<ButtonRelease-1>', lambda event: self.environment_alerts())
         self.sensor_label = label(
             self.root,
             'Temperature --   |   Humidity --   |   Gas --   |   Not connected',
@@ -103,15 +126,20 @@ class _HomeScreens:
             self.table.tag_configure(tag, background=bg, foreground=fg)
         self.footer = tk.Frame(self.root, bg=BG)
         self.status = label(self.footer, 'Starting...', 10, fg=MUTED, bg=BG, anchor='w')
-        self.status.pack(side='left', fill='x', expand=True, padx=(12, 0))
-        self.pause_button = button(self.footer, 'Pause', self.toggle_pause)
-        self.pause_button.pack(side='right', padx=(4, 10), pady=4)
-        self.next_button = button(self.footer, 'Next', lambda: self.change_page(1))
-        self.next_button.pack(side='right', padx=3, pady=4)
-        self.prev_button = button(self.footer, 'Prev', lambda: self.change_page(-1))
-        self.prev_button.pack(side='right', padx=3, pady=4)
-        self.manual_button = button(self.footer, 'Demo scan' if self.demo else 'Type code', self.typed_scan)
-        self.manual_button.pack(side='right', padx=3, pady=4)
+        #self.status.pack(side='left', fill='x', expand=True, padx=(12, 0))
+        footer_controls = tk.Frame(self.footer, bg=BG)
+        footer_controls.pack(side='right', padx=(0, 7))
+        self.pause_button = button(footer_controls, 'Pause', self.toggle_pause)
+        self.next_button = button(footer_controls, 'Next', lambda: self.change_page(1))
+        self.prev_button = button(footer_controls, 'Prev', lambda: self.change_page(-1))
+        self.manual_button = button(footer_controls, 'Demo scan' if self.demo else 'Type code', self.typed_scan)
+        controls = {'manual': self.manual_button, 'prev': self.prev_button,
+                    'next': self.next_button, 'pause': self.pause_button}
+        order = look.HOME_FOOTER_ORDER
+        if len(order) != len(controls) or set(order) != set(controls):
+            raise ValueError('HOME_FOOTER_ORDER must contain each footer key once.')
+        for name in order:
+            controls[name].pack(side='left', padx=3, pady=4)
 
     def resize(self, event=None):
         if event and event.widget is not self.root:
@@ -119,7 +147,7 @@ class _HomeScreens:
         w = max(800, self.root.winfo_width())
         h = max(480, self.root.winfo_height())
         areas = look.home_rects(w, h, bool(self.monitor_message))
-        widgets = {'header': self.header, 'sensors': self.sensor_label,
+        widgets = {'header': self.header,
                    'expiry': self.expiry_banner, 'product': self.card,
                    'heading': self.list_heading, 'table': self.table, 'footer': self.footer}
         for name, widget in widgets.items():
@@ -250,7 +278,7 @@ class _HomeScreens:
 
     def refresh_alerts(self):
         count = len(self.expiry_alerts)
-        self.alert_button.config(text=f'Alerts ({count})')
+        self.update_alert_badge()
         past = sum((row['state'] == 'past' for row in self.expiry_alerts))
         today = sum((row['state'] == 'today' for row in self.expiry_alerts))
         soon = sum((row['state'] == 'soon' for row in self.expiry_alerts))
@@ -284,5 +312,10 @@ class _HomeScreens:
                 )
             if selected and selected[0] in self.alert_tree.get_children():
                 self.alert_tree.selection_set(selected[0])
-            self.alert_info.config(text=f'{count} date reminders. {self.undated} packages have no date.\nDates are reminders, not a food-safety assessment. Check Environment for sensor status.')
+            active = bool(self.sensor_snapshot.alert_id)
+            self.alert_info.config(text=(
+                f'{count} date reminders. {self.undated} packages have no date.\n'
+                + ('Environmental alarm active. Tap Environment for live readings.\n' if active else '')
+                + 'Dates are reminders, not a food-safety assessment.'
+            ))
 

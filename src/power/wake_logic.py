@@ -32,7 +32,8 @@ def should_request_sleep(
     transaction and no active safety alarm, after the inactivity timeout.
     """
     return (
-        ui_state == UIState.HOME
+        inactivity_timeout_seconds > 0
+        and ui_state == UIState.HOME
         and not transaction_active
         and not safety_alarm_active
         and inactivity_seconds >= inactivity_timeout_seconds
