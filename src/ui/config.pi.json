@@ -46,7 +46,7 @@
     "adc_input_limit_v": 3.3,
     "startup_thresholds": {
       "threshold_voltage": 1.5,
-      "hysteresis_voltage": 0.15,
+      "hysteresis_voltage": 0.005,
       "debounce_seconds": 3.0
     }
   },
